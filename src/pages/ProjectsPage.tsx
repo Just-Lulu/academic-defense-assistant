@@ -13,30 +13,31 @@ export default function ProjectsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">Projects</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage student projects and thesis registrations.</p>
+          <div className="divider-gold w-12 mt-2 mb-1" />
+          <p className="text-sm text-muted-foreground">Manage student projects and thesis registrations.</p>
         </div>
-        <Button><Plus className="h-4 w-4 mr-1" /> New Project</Button>
+        <Button variant="hero" size="default"><Plus className="h-4 w-4 mr-1" /> New Project</Button>
       </div>
 
       <div className="grid gap-4">
         {mockProjects.map((p) => (
-          <div key={p.id} className="rounded-xl border bg-card p-5 flex items-center gap-4 hover:shadow-card-hover transition-shadow">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+          <div key={p.id} className="rounded-lg border border-gold bg-card p-5 flex items-center gap-4 hover:shadow-gold transition-all">
+            <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
               <FolderOpen className="h-5 w-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-card-foreground truncate">{p.title}</h3>
+              <h3 className="font-semibold text-foreground truncate">{p.title}</h3>
               <p className="text-sm text-muted-foreground">{p.student}</p>
             </div>
-            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-              p.status === "Completed" ? "bg-success/10 text-success" :
-              p.status === "Under Review" ? "bg-accent/10 text-accent" :
-              "bg-info/10 text-info"
+            <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+              p.status === "Completed" ? "border-success/30 text-success bg-success/10" :
+              p.status === "Under Review" ? "border-primary/30 text-primary bg-primary/10" :
+              "border-info/30 text-info bg-info/10"
             }`}>
               {p.status}
             </span>
             <div className="w-24 hidden sm:block">
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
                 <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${p.progress}%` }} />
               </div>
             </div>

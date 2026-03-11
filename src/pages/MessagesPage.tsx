@@ -11,18 +11,19 @@ export default function MessagesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-bold text-foreground">Messages</h1>
-        <p className="text-sm text-muted-foreground mt-1">Communicate with students and supervisors.</p>
+        <div className="divider-gold w-12 mt-2 mb-1" />
+        <p className="text-sm text-muted-foreground">Communicate with students and supervisors.</p>
       </div>
 
-      <div className="rounded-xl border bg-card overflow-hidden divide-y">
+      <div className="rounded-lg border border-gold bg-card overflow-hidden divide-y divide-border">
         {conversations.map((c) => (
-          <button key={c.id} className="w-full flex items-center gap-4 p-4 text-left hover:bg-muted/30 transition-colors">
+          <button key={c.id} className="w-full flex items-center gap-4 p-4 text-left hover:bg-secondary/30 transition-colors">
             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
               <MessageSquare className="h-4 w-4" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-card-foreground">{c.name}</span>
+                <span className="font-semibold text-foreground">{c.name}</span>
                 <span className="text-xs text-muted-foreground">{c.time}</span>
               </div>
               <p className="text-sm text-muted-foreground truncate">{c.lastMessage}</p>
