@@ -44,23 +44,24 @@ export default function DefenseSimulatorPage() {
     <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="font-display text-2xl font-bold text-foreground">Auto-Defense Simulator</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <div className="divider-gold w-16 mt-2 mb-1" />
+        <p className="text-sm text-muted-foreground">
           Upload your thesis document to generate AI-powered mock defense questions and suggested answers.
         </p>
       </div>
 
       {/* Upload area */}
-      <div className="rounded-xl border-2 border-dashed bg-card p-10 text-center">
-        <div className="mx-auto h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-4">
+      <div className="rounded-lg border border-dashed border-gold bg-card p-10 text-center">
+        <div className="mx-auto h-14 w-14 rounded-md bg-primary/10 flex items-center justify-center text-primary mb-4">
           <Upload className="h-7 w-7" />
         </div>
-        <h3 className="font-semibold text-card-foreground">Upload Your Thesis Document</h3>
+        <h3 className="font-semibold text-foreground">Upload Your Thesis Document</h3>
         <p className="text-sm text-muted-foreground mt-1 mb-4">Supports PDF, DOCX up to 20MB</p>
         <div className="flex justify-center gap-3">
           <Button variant="outline">
             <FileText className="h-4 w-4 mr-1" /> Choose File
           </Button>
-          <Button onClick={handleSimulate} disabled={isAnalyzing}>
+          <Button variant="hero" onClick={handleSimulate} disabled={isAnalyzing}>
             {isAnalyzing ? (
               <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Analyzing...</>
             ) : (
@@ -88,16 +89,16 @@ export default function DefenseSimulatorPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
-                className="rounded-xl border bg-card p-5 space-y-3"
+                className="rounded-lg border border-gold bg-card p-5 space-y-3"
               >
                 <div className="flex items-start gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
                     {i + 1}
                   </span>
-                  <h3 className="font-semibold text-card-foreground">{q.question}</h3>
+                  <h3 className="font-semibold text-foreground">{q.question}</h3>
                 </div>
-                <div className="ml-9 rounded-lg bg-muted p-4">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Suggested Answer</p>
+                <div className="ml-9 rounded-md bg-secondary p-4 border border-border">
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">Suggested Answer</p>
                   <p className="text-sm text-foreground leading-relaxed">{q.suggestedAnswer}</p>
                 </div>
               </motion.div>

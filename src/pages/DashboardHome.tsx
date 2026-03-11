@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 const stats = [
   { label: "Active Projects", value: "12", icon: FolderOpen, color: "bg-primary/10 text-primary" },
   { label: "Documents", value: "48", icon: FileText, color: "bg-info/10 text-info" },
-  { label: "Milestones Due", value: "5", icon: Target, color: "bg-accent/10 text-accent" },
+  { label: "Milestones Due", value: "5", icon: Target, color: "bg-primary/10 text-primary" },
   { label: "Students", value: "24", icon: Users, color: "bg-success/10 text-success" },
 ];
 
@@ -26,7 +26,8 @@ export default function DashboardHome() {
     <div className="space-y-8">
       <div>
         <h1 className="font-display text-2xl font-bold text-foreground">Welcome back</h1>
-        <p className="text-sm text-muted-foreground mt-1">Here's an overview of your supervision activity.</p>
+        <div className="divider-gold w-16 mt-2 mb-1" />
+        <p className="text-sm text-muted-foreground">Here's an overview of your supervision activity.</p>
       </div>
 
       {/* Stats */}
@@ -38,15 +39,15 @@ export default function DashboardHome() {
             initial="hidden"
             animate="visible"
             variants={fadeUp}
-            className="rounded-xl border bg-card p-5 transition-shadow hover:shadow-card-hover"
+            className="rounded-lg border border-gold bg-card p-5 transition-all hover:shadow-gold"
           >
             <div className="flex items-center justify-between">
-              <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${s.color}`}>
+              <div className={`h-10 w-10 rounded-md flex items-center justify-center ${s.color}`}>
                 <s.icon className="h-5 w-5" />
               </div>
-              <span className="text-2xl font-bold text-card-foreground">{s.value}</span>
+              <span className="text-2xl font-bold text-foreground">{s.value}</span>
             </div>
-            <p className="mt-3 text-sm text-muted-foreground">{s.label}</p>
+            <p className="mt-3 text-xs text-muted-foreground uppercase tracking-wider">{s.label}</p>
           </motion.div>
         ))}
       </div>
@@ -63,14 +64,14 @@ export default function DashboardHome() {
               animate="visible"
               variants={fadeUp}
               onClick={() => navigate(a.to)}
-              className="group flex items-start gap-4 rounded-xl border bg-card p-6 text-left transition-all hover:shadow-card-hover hover:-translate-y-0.5"
+              className="group flex items-start gap-4 rounded-lg border border-gold bg-card p-6 text-left transition-all hover:shadow-gold hover:-translate-y-0.5"
             >
-              <div className="h-12 w-12 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+              <div className="h-12 w-12 shrink-0 rounded-md bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                 <a.icon className="h-6 w-6" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-card-foreground">{a.label}</span>
+                  <span className="font-semibold text-foreground">{a.label}</span>
                   <ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{a.description}</p>
@@ -80,10 +81,10 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Recent Activity placeholder */}
+      {/* Recent Activity */}
       <div>
         <h2 className="font-display text-lg font-semibold text-foreground mb-4">Recent Activity</h2>
-        <div className="rounded-xl border bg-card p-8 text-center">
+        <div className="rounded-lg border border-gold bg-card p-8 text-center">
           <p className="text-muted-foreground text-sm">
             Activity feed will appear here once you start using the system.
           </p>

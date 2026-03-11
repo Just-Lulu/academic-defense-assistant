@@ -8,7 +8,6 @@ import {
   Brain,
   Bot,
   Settings,
-  BookOpen,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -51,19 +50,16 @@ export function AppSidebar() {
       <SidebarContent>
         {/* Logo */}
         <div className="flex h-14 items-center gap-2 px-4 border-b border-sidebar-border">
-          <div className="h-7 w-7 rounded-md bg-sidebar-primary flex items-center justify-center shrink-0">
-            <BookOpen className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
-          </div>
-          {!collapsed && (
-            <span className="font-display text-base font-bold text-sidebar-accent-foreground">
-              SuperviseAI
-            </span>
+          {!collapsed ? (
+            <span className="font-display text-xl font-bold text-gradient-gold tracking-wider">ORPTS</span>
+          ) : (
+            <span className="font-display text-lg font-bold text-primary">O</span>
           )}
         </div>
 
         {/* Core */}
         <SidebarGroup>
-          <SidebarGroupLabel>Core Modules</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] tracking-[0.2em] uppercase">Core Modules</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {coreItems.map((item) => (
@@ -82,7 +78,7 @@ export function AppSidebar() {
 
         {/* AI */}
         <SidebarGroup>
-          <SidebarGroupLabel>AI Tools</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] tracking-[0.2em] uppercase">AI Tools</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {aiItems.map((item) => (

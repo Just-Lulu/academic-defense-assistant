@@ -1,4 +1,4 @@
-import { Target, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { CheckCircle, Clock, AlertCircle } from "lucide-react";
 
 const milestones = [
   { id: 1, title: "Literature Review Submission", project: "AI Supervision", due: "2026-03-15", status: "upcoming" },
@@ -8,9 +8,9 @@ const milestones = [
 ];
 
 const statusConfig = {
-  completed: { icon: CheckCircle, className: "text-success", badge: "bg-success/10 text-success" },
-  upcoming: { icon: Clock, className: "text-info", badge: "bg-info/10 text-info" },
-  overdue: { icon: AlertCircle, className: "text-destructive", badge: "bg-destructive/10 text-destructive" },
+  completed: { icon: CheckCircle, className: "text-success", badge: "border-success/30 bg-success/10 text-success" },
+  upcoming: { icon: Clock, className: "text-info", badge: "border-info/30 bg-info/10 text-info" },
+  overdue: { icon: AlertCircle, className: "text-destructive", badge: "border-destructive/30 bg-destructive/10 text-destructive" },
 };
 
 export default function MilestonesPage() {
@@ -18,7 +18,8 @@ export default function MilestonesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-bold text-foreground">Milestones</h1>
-        <p className="text-sm text-muted-foreground mt-1">Track project milestones and deadlines.</p>
+        <div className="divider-gold w-12 mt-2 mb-1" />
+        <p className="text-sm text-muted-foreground">Track project milestones and deadlines.</p>
       </div>
 
       <div className="grid gap-4">
@@ -26,14 +27,14 @@ export default function MilestonesPage() {
           const cfg = statusConfig[m.status as keyof typeof statusConfig];
           const Icon = cfg.icon;
           return (
-            <div key={m.id} className="rounded-xl border bg-card p-5 flex items-center gap-4 hover:shadow-card-hover transition-shadow">
+            <div key={m.id} className="rounded-lg border border-gold bg-card p-5 flex items-center gap-4 hover:shadow-gold transition-all">
               <Icon className={`h-5 w-5 ${cfg.className} shrink-0`} />
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-card-foreground">{m.title}</h3>
+                <h3 className="font-semibold text-foreground">{m.title}</h3>
                 <p className="text-sm text-muted-foreground">{m.project}</p>
               </div>
               <span className="text-xs text-muted-foreground hidden sm:block">{m.due}</span>
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${cfg.badge}`}>
+              <span className={`text-xs font-medium px-2.5 py-1 rounded-full border capitalize ${cfg.badge}`}>
                 {m.status}
               </span>
             </div>

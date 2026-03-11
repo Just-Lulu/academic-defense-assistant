@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowRight, BookOpen, Bot, Brain, Calendar, FileText, MessageSquare, Shield, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Bot, Brain, Calendar, FileText, MessageSquare, Shield, Users, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import heroBg from "@/assets/hero-bg.jpg";
@@ -49,12 +49,12 @@ const features = [
 
 const stagger = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.08 } },
+  visible: { transition: { staggerChildren: 0.1 } },
 };
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+  hidden: { opacity: 0, y: 28 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
 };
 
 export default function LandingPage() {
@@ -63,93 +63,117 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
-      <nav className="fixed top-0 inset-x-0 z-50 border-b bg-background/80 backdrop-blur-lg">
+      <nav className="fixed top-0 inset-x-0 z-50 border-b border-gold bg-background/90 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <BookOpen className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="font-display text-xl font-bold text-foreground">SuperviseAI</span>
+          <span className="font-display text-2xl font-bold text-primary tracking-wider">ORPTS</span>
+          <div className="hidden sm:flex items-center gap-8">
+            <button onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })} className="text-sm text-muted-foreground hover:text-primary transition-colors tracking-wide uppercase">Features</button>
+            <button onClick={() => document.getElementById("about")?.scrollIntoView({ behavior: "smooth" })} className="text-sm text-muted-foreground hover:text-primary transition-colors tracking-wide uppercase">About</button>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/login")}>
-              Sign In
-            </Button>
-            <Button size="sm" onClick={() => navigate("/login")}>
-              Get Started
-            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/login")} className="text-muted-foreground hover:text-primary tracking-wide uppercase text-xs">Sign In</Button>
+            <Button variant="hero" size="sm" onClick={() => navigate("/login")}>Get Started</Button>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="relative min-h-[90vh] flex items-center overflow-hidden pt-16">
+      <section className="relative min-h-screen flex items-center overflow-hidden">
         <div className="absolute inset-0">
           <img src={heroBg} alt="" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-hero-gradient opacity-90" />
+          <div className="absolute inset-0 bg-hero-overlay" />
         </div>
-        <div className="container relative z-10 py-24">
+        <div className="container relative z-10 py-32 pt-40">
           <motion.div
             initial="hidden"
             animate="visible"
             variants={stagger}
-            className="max-w-3xl"
+            className="max-w-3xl mx-auto text-center"
           >
-            <motion.div variants={fadeUp} className="mb-4">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-sm font-medium text-accent">
-                <Brain className="h-3.5 w-3.5" /> AI-Powered Academic Supervision
-              </span>
-            </motion.div>
+            <motion.p variants={fadeUp} className="text-sm tracking-[0.3em] uppercase text-primary mb-6">
+              AI-Powered Academic Supervision
+            </motion.p>
             <motion.h1
               variants={fadeUp}
-              className="font-display text-4xl font-bold leading-tight tracking-tight text-primary-foreground sm:text-5xl md:text-6xl"
+              className="font-display text-5xl font-bold leading-tight tracking-tight text-foreground sm:text-6xl md:text-7xl"
             >
-              Transform Your{" "}
-              <span className="text-gradient-hero">Research Supervision</span>{" "}
-              Experience
+              <span className="text-gradient-gold">ORPTS</span>
             </motion.h1>
+            <motion.p variants={fadeUp} className="font-display text-xl text-muted-foreground mt-2 sm:text-2xl italic">
+              Online Research Project Tracking System
+            </motion.p>
             <motion.p
               variants={fadeUp}
-              className="mt-6 max-w-xl text-lg leading-relaxed text-primary-foreground/75"
+              className="mt-8 max-w-xl mx-auto text-base leading-relaxed text-muted-foreground"
             >
               A comprehensive platform that streamlines thesis supervision with
               intelligent document analysis, automated defense preparation, and
-              AI-assisted communication — all in one place.
+              AI-assisted communication.
             </motion.p>
-            <motion.div variants={fadeUp} className="mt-10 flex flex-wrap gap-4">
+            <motion.div variants={fadeUp} className="mt-10 flex flex-wrap justify-center gap-4">
               <Button variant="hero" size="xl" onClick={() => navigate("/login")}>
-                Start Your Journey <ArrowRight className="ml-1 h-4 w-4" />
+                Explore Now <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
-              <Button
-                variant="hero-outline"
-                size="xl"
-                onClick={() => {
-                  document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
-                }}
-              >
-                Explore Features
+              <Button variant="hero-outline" size="xl" onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}>
+                View Features
               </Button>
             </motion.div>
+          </motion.div>
 
-            {/* Stats */}
-            <motion.div variants={fadeUp} className="mt-16 grid grid-cols-3 gap-8 max-w-md">
-              {[
-                { value: "8+", label: "Core Modules" },
-                { value: "2", label: "AI Engines" },
-                { value: "3", label: "User Roles" },
-              ].map((stat) => (
-                <div key={stat.label}>
-                  <div className="text-3xl font-bold text-accent">{stat.value}</div>
-                  <div className="text-sm text-primary-foreground/60">{stat.label}</div>
-                </div>
-              ))}
-            </motion.div>
+          {/* Scroll indicator */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5 }}
+            className="absolute bottom-10 left-1/2 -translate-x-1/2"
+          >
+            <ChevronDown className="h-6 w-6 text-primary animate-bounce" />
           </motion.div>
         </div>
       </section>
 
+      {/* Stats bar */}
+      <section className="border-y border-gold bg-card">
+        <div className="container py-8">
+          <div className="grid grid-cols-3 gap-6 max-w-lg mx-auto text-center">
+            {[
+              { value: "8+", label: "Core Modules" },
+              { value: "2", label: "AI Engines" },
+              { value: "3", label: "User Roles" },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <div className="text-3xl font-display font-bold text-primary">{stat.value}</div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wider mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* About */}
+      <section id="about" className="py-24 bg-background">
+        <div className="container grid lg:grid-cols-2 gap-12 items-center">
+          <div>
+            <p className="text-xs tracking-[0.25em] uppercase text-primary mb-3">About the Platform</p>
+            <h2 className="font-display text-3xl font-bold text-foreground sm:text-4xl">
+              The Comprehensive Approach to Research Supervision
+            </h2>
+            <div className="divider-gold my-6 w-24" />
+            <p className="text-muted-foreground leading-relaxed">
+              ORPTS is built using Design Science Research methodology, providing a robust platform for managing the entire thesis supervision lifecycle. From project registration to AI-powered defense preparation, every feature is designed for academic excellence.
+            </p>
+            <Button variant="hero" size="lg" className="mt-8" onClick={() => navigate("/login")}>
+              Learn More
+            </Button>
+          </div>
+          <div className="rounded-lg overflow-hidden border border-gold">
+            <img src={heroBg} alt="Academic workspace" className="w-full h-72 object-cover" />
+          </div>
+        </div>
+      </section>
+
       {/* Features */}
-      <section id="features" className="py-24 bg-background">
+      <section id="features" className="py-24 bg-card">
         <div className="container">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -157,16 +181,11 @@ export default function LandingPage() {
             viewport={{ once: true }}
             className="mb-16 text-center"
           >
-            <span className="text-sm font-semibold uppercase tracking-widest text-primary">
-              Platform Capabilities
-            </span>
-            <h2 className="font-display mt-3 text-3xl font-bold text-foreground sm:text-4xl">
-              Everything You Need for Effective Supervision
+            <p className="text-xs tracking-[0.25em] uppercase text-primary mb-3">Platform Capabilities</p>
+            <h2 className="font-display text-3xl font-bold text-foreground sm:text-4xl">
+              What's Included
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-              From project registration to AI-powered defense simulation, our
-              platform covers the entire supervision lifecycle.
-            </p>
+            <div className="divider-gold mx-auto my-6 w-24" />
           </motion.div>
 
           <motion.div
@@ -174,19 +193,19 @@ export default function LandingPage() {
             whileInView="visible"
             viewport={{ once: true }}
             variants={stagger}
-            className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4"
+            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4"
           >
             {features.map((f) => (
               <motion.div
                 key={f.title}
                 variants={fadeUp}
-                className="group rounded-xl border bg-card p-6 transition-all duration-300 hover:shadow-card-hover hover:-translate-y-1"
+                className="group rounded-lg border border-gold bg-background p-6 transition-all duration-300 hover:shadow-gold hover:-translate-y-1"
               >
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                   <f.icon className="h-5 w-5" />
                 </div>
-                <h3 className="font-sans text-base font-semibold text-card-foreground">{f.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.description}</p>
+                <h3 className="font-sans text-sm font-semibold text-foreground tracking-wide">{f.title}</h3>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{f.description}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -194,17 +213,23 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-hero-gradient py-20">
-        <div className="container text-center">
+      <section className="py-24 bg-background relative overflow-hidden">
+        <div className="absolute inset-0 opacity-30">
+          <img src={heroBg} alt="" className="w-full h-full object-cover" />
+        </div>
+        <div className="absolute inset-0 bg-background/80" />
+        <div className="container relative z-10 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="font-display text-3xl font-bold text-primary-foreground sm:text-4xl">
-              Ready to Modernize Your Supervision Process?
+            <p className="text-xs tracking-[0.25em] uppercase text-primary mb-3">Get Started</p>
+            <h2 className="font-display text-3xl font-bold text-foreground sm:text-4xl">
+              Ready to Modernize Your Supervision?
             </h2>
-            <p className="mx-auto mt-4 max-w-lg text-primary-foreground/70">
+            <div className="divider-gold mx-auto my-6 w-24" />
+            <p className="mx-auto max-w-lg text-muted-foreground">
               Join the pilot program and experience AI-enhanced academic
               supervision designed using Design Science Research methodology.
             </p>
@@ -216,16 +241,11 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t py-10 bg-card">
+      <footer className="border-t border-gold py-10 bg-card">
         <div className="container flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded bg-primary flex items-center justify-center">
-              <BookOpen className="h-3 w-3 text-primary-foreground" />
-            </div>
-            <span className="text-sm font-semibold text-foreground">SuperviseAI</span>
-          </div>
+          <span className="font-display text-lg font-bold text-primary tracking-wider">ORPTS</span>
           <p className="text-xs text-muted-foreground">
-            © 2026 SuperviseAI — Built with Design Science Research methodology
+            © 2026 ORPTS — Built with Design Science Research Methodology
           </p>
         </div>
       </footer>
