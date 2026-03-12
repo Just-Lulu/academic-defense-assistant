@@ -1,18 +1,7 @@
 import { motion } from "framer-motion";
-import { FolderOpen, FileText, Target, Users, Brain, Bot, ArrowUpRight } from "lucide-react";
+import { FolderOpen, FileText, Target, Users, Brain, Bot, ArrowUpRight, Clock, Activity } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const stats = [
-  { label: "Active Projects", value: "12", icon: FolderOpen, color: "bg-primary/10 text-primary" },
-  { label: "Documents", value: "48", icon: FileText, color: "bg-info/10 text-info" },
-  { label: "Milestones Due", value: "5", icon: Target, color: "bg-primary/10 text-primary" },
-  { label: "Students", value: "24", icon: Users, color: "bg-success/10 text-success" },
-];
-
-const quickActions = [
-  { label: "Defense Simulator", description: "Upload thesis & generate mock questions", icon: Brain, to: "/app/defense-simulator" },
-  { label: "AI Chatbot", description: "Ask questions about your project", icon: Bot, to: "/app/chatbot" },
-];
+import { useState, useEffect } from "react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -21,25 +10,58 @@ const fadeUp = {
 
 export default function DashboardHome() {
   const navigate = useNavigate();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const greeting = (() => {
+    const h = currentTime.getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  })();
+
+  const stats = [
+    { label: "Projects", value: "0", icon: FolderOpen, color: "bg-primary/10 text-primary", to: "/app/projects" },
+    { label: "Documents", value: "0", icon: FileText, color: "bg-info/10 text-info", to: "/app/documents" },
+    { label: "Milestones", value: "0", icon: Target, color: "bg-primary/10 text-primary", to: "/app/milestones" },
+    { label: "Messages", value: "0", icon: Users, color: "bg-success/10 text-success", to: "/app/messages" },
+  ];
+
+  const quickActions = [
+    { label: "Defense Simulator", description: "Upload thesis & generate mock questions", icon: Brain, to: "/app/defense-simulator" },
+    { label: "AI Chatbot", description: "Ask questions about your project", icon: Bot, to: "/app/chatbot" },
+    { label: "My Projects", description: "View and manage your research projects", icon: FolderOpen, to: "/app/projects" },
+    { label: "Schedule", description: "View upcoming meetings and deadlines", icon: Clock, to: "/app/schedule" },
+  ];
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">Welcome back</h1>
+        <h1 className="font-display text-2xl font-bold text-foreground">{greeting}</h1>
         <div className="divider-gold w-16 mt-2 mb-1" />
-        <p className="text-sm text-muted-foreground">Here's an overview of your supervision activity.</p>
+        <p className="text-sm text-muted-foreground flex items-center gap-2">
+          <Clock className="h-3.5 w-3.5" />
+          {currentTime.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          {" · "}
+          {currentTime.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+        </p>
       </div>
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s, i) => (
-          <motion.div
+          <motion.button
             key={s.label}
             custom={i}
             initial="hidden"
             animate="visible"
             variants={fadeUp}
-            className="rounded-lg border border-gold bg-card p-5 transition-all hover:shadow-gold"
+            onClick={() => navigate(s.to)}
+            className="rounded-lg border border-gold bg-card p-5 transition-all hover:shadow-gold hover:-translate-y-0.5 text-left"
           >
             <div className="flex items-center justify-between">
               <div className={`h-10 w-10 rounded-md flex items-center justify-center ${s.color}`}>
@@ -48,13 +70,13 @@ export default function DashboardHome() {
               <span className="text-2xl font-bold text-foreground">{s.value}</span>
             </div>
             <p className="mt-3 text-xs text-muted-foreground uppercase tracking-wider">{s.label}</p>
-          </motion.div>
+          </motion.button>
         ))}
       </div>
 
       {/* Quick Actions */}
       <div>
-        <h2 className="font-display text-lg font-semibold text-foreground mb-4">AI-Powered Tools</h2>
+        <h2 className="font-display text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {quickActions.map((a, i) => (
             <motion.button
@@ -81,13 +103,19 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Recent Activity */}
+      {/* Getting Started */}
       <div>
-        <h2 className="font-display text-lg font-semibold text-foreground mb-4">Recent Activity</h2>
-        <div className="rounded-lg border border-gold bg-card p-8 text-center">
-          <p className="text-muted-foreground text-sm">
-            Activity feed will appear here once you start using the system.
-          </p>
+        <h2 className="font-display text-lg font-semibold text-foreground mb-4">Getting Started</h2>
+        <div className="rounded-lg border border-gold bg-card p-6 space-y-4">
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <Activity className="h-5 w-5 text-primary" />
+            <p className="text-sm">Connect a backend to start tracking real projects, documents, and milestones.</p>
+          </div>
+          <ul className="space-y-2 text-sm text-muted-foreground ml-8 list-disc">
+            <li>Create your first project under <button onClick={() => navigate("/app/projects")} className="text-primary underline underline-offset-2 hover:text-primary/80">Projects</button></li>
+            <li>Upload documents in the <button onClick={() => navigate("/app/documents")} className="text-primary underline underline-offset-2 hover:text-primary/80">Documents</button> module</li>
+            <li>Try the <button onClick={() => navigate("/app/defense-simulator")} className="text-primary underline underline-offset-2 hover:text-primary/80">Defense Simulator</button> with a thesis PDF</li>
+          </ul>
         </div>
       </div>
     </div>
