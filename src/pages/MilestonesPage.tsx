@@ -18,7 +18,7 @@ const statusConfig = {
 export default function MilestonesPage() {
   const { user } = useAuth();
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
