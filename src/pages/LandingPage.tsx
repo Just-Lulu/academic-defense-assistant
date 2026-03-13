@@ -245,7 +245,7 @@ export default function LandingPage() {
         <div className="container flex flex-col items-center justify-between gap-4 sm:flex-row">
           <span className="font-display text-lg font-bold text-primary tracking-wider">ORPTS</span>
           <p className="text-xs text-muted-foreground">
-            © 2026 ORPTS — Built with Design Science Research Methodology
+            © 2026 ORPTS — Adesina Toluwanimi
           </p>
         </div>
       </footer>
