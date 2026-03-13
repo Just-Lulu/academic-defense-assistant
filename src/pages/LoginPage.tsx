@@ -2,15 +2,61 @@ import { useState } from "react";
 import { LogIn, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 import heroBg from "@/assets/hero-bg.jpg";
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState<"student" | "supervisor">("student");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Redirect if already logged in
+  if (user) {
+    navigate("/app", { replace: true });
+    return null;
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate("/app");
+    setLoading(true);
+
+    try {
+      if (isSignUp) {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: fullName },
+            emailRedirectTo: window.location.origin,
+          },
+        });
+        if (error) throw error;
+
+        // Insert role
+        if (data.user) {
+          await supabase.from("user_roles").insert({ user_id: data.user.id, role });
+        }
+
+        toast.success("Account created! Check your email to confirm, or sign in if auto-confirm is enabled.");
+        // If auto-confirmed, navigate
+        if (data.session) navigate("/app");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        navigate("/app");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Authentication failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,6 +98,9 @@ export default function LoginPage() {
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Full Name</label>
                 <input
                   type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
                   className="mt-1.5 w-full rounded-md border border-gold bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   placeholder="John Doe"
                 />
@@ -61,6 +110,9 @@ export default function LoginPage() {
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</label>
               <input
                 type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="mt-1.5 w-full rounded-md border border-gold bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="you@university.edu"
               />
@@ -69,6 +121,10 @@ export default function LoginPage() {
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Password</label>
               <input
                 type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="mt-1.5 w-full rounded-md border border-gold bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="••••••••"
               />
@@ -76,14 +132,20 @@ export default function LoginPage() {
             {isSignUp && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Role</label>
-                <select className="mt-1.5 w-full rounded-md border border-gold bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option>Student</option>
-                  <option>Supervisor</option>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as "student" | "supervisor")}
+                  className="mt-1.5 w-full rounded-md border border-gold bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="student">Student</option>
+                  <option value="supervisor">Supervisor</option>
                 </select>
               </div>
             )}
-            <Button type="submit" variant="hero" className="w-full" size="lg">
-              {isSignUp ? (
+            <Button type="submit" variant="hero" className="w-full" size="lg" disabled={loading}>
+              {loading ? (
+                <div className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+              ) : isSignUp ? (
                 <><UserPlus className="h-4 w-4 mr-1" /> Create Account</>
               ) : (
                 <><LogIn className="h-4 w-4 mr-1" /> Sign In</>

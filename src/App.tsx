@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardLayout from "./layouts/DashboardLayout";
@@ -25,22 +27,24 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/app" element={<DashboardLayout />}>
-            <Route index element={<DashboardHome />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route path="documents" element={<DocumentsPage />} />
-            <Route path="milestones" element={<MilestonesPage />} />
-            <Route path="schedule" element={<SchedulePage />} />
-            <Route path="messages" element={<MessagesPage />} />
-            <Route path="defense-simulator" element={<DefenseSimulatorPage />} />
-            <Route path="chatbot" element={<ChatbotPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/app" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+              <Route index element={<DashboardHome />} />
+              <Route path="projects" element={<ProjectsPage />} />
+              <Route path="documents" element={<DocumentsPage />} />
+              <Route path="milestones" element={<MilestonesPage />} />
+              <Route path="schedule" element={<SchedulePage />} />
+              <Route path="messages" element={<MessagesPage />} />
+              <Route path="defense-simulator" element={<DefenseSimulatorPage />} />
+              <Route path="chatbot" element={<ChatbotPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
