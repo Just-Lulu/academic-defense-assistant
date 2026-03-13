@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Milestone = Tables<"milestones">;
-type Project = Tables<"projects">;
+type ProjectOption = { id: string; title: string };
 
 const statusConfig = {
   completed: { icon: CheckCircle, className: "text-success", badge: "border-success/30 bg-success/10 text-success" },
