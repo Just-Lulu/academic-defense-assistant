@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
-import { FolderOpen, FileText, Target, Users, Brain, Bot, ArrowUpRight, Clock, Activity } from "lucide-react";
+import { FolderOpen, FileText, Target, Users, Brain, Bot, ArrowUpRight, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -10,11 +12,29 @@ const fadeUp = {
 
 export default function DashboardHome() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [counts, setCounts] = useState({ projects: 0, documents: 0, milestones: 0 });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    async function fetchCounts() {
+      const [p, d, m] = await Promise.all([
+        supabase.from("projects").select("id", { count: "exact", head: true }),
+        supabase.from("documents").select("id", { count: "exact", head: true }),
+        supabase.from("milestones").select("id", { count: "exact", head: true }),
+      ]);
+      setCounts({
+        projects: p.count || 0,
+        documents: d.count || 0,
+        milestones: m.count || 0,
+      });
+    }
+    fetchCounts();
   }, []);
 
   const greeting = (() => {
@@ -24,10 +44,12 @@ export default function DashboardHome() {
     return "Good evening";
   })();
 
+  const displayName = profile?.full_name || "Researcher";
+
   const stats = [
-    { label: "Projects", value: "0", icon: FolderOpen, color: "bg-primary/10 text-primary", to: "/app/projects" },
-    { label: "Documents", value: "0", icon: FileText, color: "bg-info/10 text-info", to: "/app/documents" },
-    { label: "Milestones", value: "0", icon: Target, color: "bg-primary/10 text-primary", to: "/app/milestones" },
+    { label: "Projects", value: String(counts.projects), icon: FolderOpen, color: "bg-primary/10 text-primary", to: "/app/projects" },
+    { label: "Documents", value: String(counts.documents), icon: FileText, color: "bg-info/10 text-info", to: "/app/documents" },
+    { label: "Milestones", value: String(counts.milestones), icon: Target, color: "bg-primary/10 text-primary", to: "/app/milestones" },
     { label: "Messages", value: "0", icon: Users, color: "bg-success/10 text-success", to: "/app/messages" },
   ];
 
@@ -41,7 +63,7 @@ export default function DashboardHome() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">{greeting}</h1>
+        <h1 className="font-display text-2xl font-bold text-foreground">{greeting}, {displayName}</h1>
         <div className="divider-gold w-16 mt-2 mb-1" />
         <p className="text-sm text-muted-foreground flex items-center gap-2">
           <Clock className="h-3.5 w-3.5" />
@@ -51,22 +73,12 @@ export default function DashboardHome() {
         </p>
       </div>
 
-      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s, i) => (
-          <motion.button
-            key={s.label}
-            custom={i}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            onClick={() => navigate(s.to)}
-            className="rounded-lg border border-gold bg-card p-5 transition-all hover:shadow-gold hover:-translate-y-0.5 text-left"
-          >
+          <motion.button key={s.label} custom={i} initial="hidden" animate="visible" variants={fadeUp} onClick={() => navigate(s.to)}
+            className="rounded-lg border border-gold bg-card p-5 transition-all hover:shadow-gold hover:-translate-y-0.5 text-left">
             <div className="flex items-center justify-between">
-              <div className={`h-10 w-10 rounded-md flex items-center justify-center ${s.color}`}>
-                <s.icon className="h-5 w-5" />
-              </div>
+              <div className={`h-10 w-10 rounded-md flex items-center justify-center ${s.color}`}><s.icon className="h-5 w-5" /></div>
               <span className="text-2xl font-bold text-foreground">{s.value}</span>
             </div>
             <p className="mt-3 text-xs text-muted-foreground uppercase tracking-wider">{s.label}</p>
@@ -74,20 +86,12 @@ export default function DashboardHome() {
         ))}
       </div>
 
-      {/* Quick Actions */}
       <div>
         <h2 className="font-display text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {quickActions.map((a, i) => (
-            <motion.button
-              key={a.label}
-              custom={i + 4}
-              initial="hidden"
-              animate="visible"
-              variants={fadeUp}
-              onClick={() => navigate(a.to)}
-              className="group flex items-start gap-4 rounded-lg border border-gold bg-card p-6 text-left transition-all hover:shadow-gold hover:-translate-y-0.5"
-            >
+            <motion.button key={a.label} custom={i + 4} initial="hidden" animate="visible" variants={fadeUp} onClick={() => navigate(a.to)}
+              className="group flex items-start gap-4 rounded-lg border border-gold bg-card p-6 text-left transition-all hover:shadow-gold hover:-translate-y-0.5">
               <div className="h-12 w-12 shrink-0 rounded-md bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                 <a.icon className="h-6 w-6" />
               </div>
@@ -100,22 +104,6 @@ export default function DashboardHome() {
               </div>
             </motion.button>
           ))}
-        </div>
-      </div>
-
-      {/* Getting Started */}
-      <div>
-        <h2 className="font-display text-lg font-semibold text-foreground mb-4">Getting Started</h2>
-        <div className="rounded-lg border border-gold bg-card p-6 space-y-4">
-          <div className="flex items-center gap-3 text-muted-foreground">
-            <Activity className="h-5 w-5 text-primary" />
-            <p className="text-sm">Connect a backend to start tracking real projects, documents, and milestones.</p>
-          </div>
-          <ul className="space-y-2 text-sm text-muted-foreground ml-8 list-disc">
-            <li>Create your first project under <button onClick={() => navigate("/app/projects")} className="text-primary underline underline-offset-2 hover:text-primary/80">Projects</button></li>
-            <li>Upload documents in the <button onClick={() => navigate("/app/documents")} className="text-primary underline underline-offset-2 hover:text-primary/80">Documents</button> module</li>
-            <li>Try the <button onClick={() => navigate("/app/defense-simulator")} className="text-primary underline underline-offset-2 hover:text-primary/80">Defense Simulator</button> with a thesis PDF</li>
-          </ul>
         </div>
       </div>
     </div>
