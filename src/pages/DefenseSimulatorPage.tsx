@@ -1,44 +1,116 @@
-import { useState } from "react";
-import { Brain, Upload, FileText, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Brain, Upload, FileText, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import type { Tables } from "@/integrations/supabase/types";
 
-interface MockQuestion {
+type Document = Tables<"documents">;
+
+interface GeneratedQuestion {
   question: string;
   suggestedAnswer: string;
 }
 
-const mockQuestions: MockQuestion[] = [
-  {
-    question: "What is the primary research gap your study addresses?",
-    suggestedAnswer: "The study addresses the lack of AI-integrated tools in academic supervision systems, which leads to inefficiencies in thesis defense preparation and routine communication."
-  },
-  {
-    question: "Why did you choose Design Science Research as your methodology?",
-    suggestedAnswer: "DSR is appropriate because the project involves designing and evaluating a novel IT artifact — an AI-enhanced supervision platform — to solve a specific organizational problem."
-  },
-  {
-    question: "How does your AI chatbot handle ambiguous queries?",
-    suggestedAnswer: "The chatbot uses retrieval-augmented generation to match queries against stored documents. When confidence is below a threshold, the query is escalated to the appropriate supervisor."
-  },
-  {
-    question: "What evaluation framework will you use to assess user acceptance?",
-    suggestedAnswer: "We will use the Technology Acceptance Model (TAM) to measure perceived usefulness and ease of use, supplemented by qualitative feedback interviews."
-  },
-];
-
 export default function DefenseSimulatorPage() {
+  const { user } = useAuth();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [questions, setQuestions] = useState<MockQuestion[] | null>(null);
+  const [questions, setQuestions] = useState<GeneratedQuestion[] | null>(null);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSimulate = () => {
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  async function fetchDocuments() {
+    const { data, error } = await supabase
+      .from("documents")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) toast.error(error.message);
+    else setDocuments(data || []);
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploading(true);
+
+    const filePath = `${user.id}/${Date.now()}_${file.name}`;
+    const { error: uploadError } = await supabase.storage.from("documents").upload(filePath, file);
+    if (uploadError) {
+      toast.error(uploadError.message);
+      setUploading(false);
+      return;
+    }
+
+    const { data: dbData, error: dbError } = await supabase.from("documents").insert({
+      title: file.name.replace(/\.[^/.]+$/, ""),
+      file_name: file.name,
+      file_path: filePath,
+      file_size: file.size,
+      mime_type: file.type,
+      uploaded_by: user.id,
+    }).select().single();
+
+    if (dbError) toast.error(dbError.message);
+    else {
+      toast.success("Document uploaded!");
+      fetchDocuments();
+      if (dbData) setSelectedDocId(dbData.id);
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  const handleSimulate = async () => {
+    if (!selectedDocId && documents.length === 0) {
+      toast.error("Please select or upload a document first.");
+      return;
+    }
+
     setIsAnalyzing(true);
     setQuestions(null);
-    setTimeout(() => {
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/defense-simulator`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            documentId: selectedDocId || documents[0]?.id,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to generate questions");
+      }
+
+      const data = await response.json();
+      if (data.questions?.length) {
+        setQuestions(data.questions);
+      } else {
+        toast.error("No questions generated. Try again.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate questions");
+    } finally {
       setIsAnalyzing(false);
-      setQuestions(mockQuestions);
-    }, 2500);
+    }
   };
+
+  const selectedDoc = documents.find((d) => d.id === selectedDocId);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -46,22 +118,54 @@ export default function DefenseSimulatorPage() {
         <h1 className="font-display text-2xl font-bold text-foreground">Auto-Defense Simulator</h1>
         <div className="divider-gold w-16 mt-2 mb-1" />
         <p className="text-sm text-muted-foreground">
-          Upload your thesis document to generate AI-powered mock defense questions and suggested answers.
+          Select a document or upload a new one to generate AI-powered mock defense questions.
         </p>
       </div>
 
+      {/* Document Selection */}
+      {documents.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground">Choose from uploaded documents</h3>
+          <div className="grid gap-2 max-h-48 overflow-auto rounded-lg border border-gold bg-card p-3">
+            {documents.map((doc) => (
+              <button
+                key={doc.id}
+                onClick={() => setSelectedDocId(doc.id)}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                  selectedDocId === doc.id
+                    ? "bg-primary/10 border border-primary text-foreground"
+                    : "hover:bg-secondary text-muted-foreground border border-transparent"
+                }`}
+              >
+                <FileText className="h-4 w-4 shrink-0 text-primary" />
+                <span className="truncate flex-1">{doc.file_name}</span>
+                {selectedDocId === doc.id && <Check className="h-4 w-4 text-primary shrink-0" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Upload area */}
-      <div className="rounded-lg border border-dashed border-gold bg-card p-10 text-center">
+      <div className="rounded-lg border border-dashed border-gold bg-card p-8 text-center">
         <div className="mx-auto h-14 w-14 rounded-md bg-primary/10 flex items-center justify-center text-primary mb-4">
           <Upload className="h-7 w-7" />
         </div>
-        <h3 className="font-semibold text-foreground">Upload Your Thesis Document</h3>
+        <h3 className="font-semibold text-foreground">
+          {documents.length > 0 ? "Or upload a new document" : "Upload Your Thesis Document"}
+        </h3>
         <p className="text-sm text-muted-foreground mt-1 mb-4">Supports PDF, DOCX up to 20MB</p>
         <div className="flex justify-center gap-3">
-          <Button variant="outline">
-            <FileText className="h-4 w-4 mr-1" /> Choose File
+          <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} accept=".pdf,.docx,.doc,.txt" />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            <FileText className="h-4 w-4 mr-1" />
+            {uploading ? "Uploading..." : "Choose File"}
           </Button>
-          <Button variant="hero" onClick={handleSimulate} disabled={isAnalyzing}>
+          <Button
+            variant="hero"
+            onClick={handleSimulate}
+            disabled={isAnalyzing || (!selectedDocId && documents.length === 0)}
+          >
             {isAnalyzing ? (
               <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Analyzing...</>
             ) : (
@@ -69,6 +173,11 @@ export default function DefenseSimulatorPage() {
             )}
           </Button>
         </div>
+        {selectedDoc && (
+          <p className="text-xs text-muted-foreground mt-3">
+            Selected: <span className="font-medium text-foreground">{selectedDoc.file_name}</span>
+          </p>
+        )}
       </div>
 
       {/* Results */}
