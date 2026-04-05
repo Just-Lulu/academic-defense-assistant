@@ -8,7 +8,10 @@ import {
   Brain,
   Bot,
   Settings,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
