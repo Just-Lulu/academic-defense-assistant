@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FolderOpen, Plus, X } from "lucide-react";
+import { FolderOpen, Plus, X, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,8 +8,14 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Project = Tables<"projects">;
 
+interface SupervisorProfile {
+  user_id: string;
+  full_name: string | null;
+  department: string | null;
+}
+
 export default function ProjectsPage() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -19,7 +25,15 @@ export default function ProjectsPage() {
   const [department, setDepartment] = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { fetchProjects(); }, []);
+  // Supervisor assignment
+  const [supervisors, setSupervisors] = useState<SupervisorProfile[]>([]);
+  const [assigningProject, setAssigningProject] = useState<string | null>(null);
+  const [selectedSupervisor, setSelectedSupervisor] = useState("");
+
+  useEffect(() => {
+    fetchProjects();
+    fetchSupervisors();
+  }, []);
 
   async function fetchProjects() {
     setLoading(true);
@@ -27,6 +41,15 @@ export default function ProjectsPage() {
     if (error) toast.error(error.message);
     else setProjects(data || []);
     setLoading(false);
+  }
+
+  async function fetchSupervisors() {
+    // Get user_ids that have the supervisor role
+    const { data: roleData } = await supabase.from("user_roles").select("user_id").eq("role", "supervisor");
+    if (!roleData?.length) return;
+    const ids = roleData.map((r) => r.user_id);
+    const { data: profiles } = await supabase.from("profiles").select("user_id, full_name, department").in("user_id", ids);
+    if (profiles) setSupervisors(profiles);
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -40,6 +63,19 @@ export default function ProjectsPage() {
     else { toast.success("Project created!"); setShowForm(false); setTitle(""); setDescription(""); setFaculty(""); setDepartment(""); fetchProjects(); }
     setSaving(false);
   }
+
+  async function handleAssignSupervisor(projectId: string) {
+    if (!selectedSupervisor) return;
+    const { error } = await supabase.from("projects").update({ supervisor_id: selectedSupervisor }).eq("id", projectId);
+    if (error) toast.error(error.message);
+    else { toast.success("Supervisor assigned!"); setAssigningProject(null); setSelectedSupervisor(""); fetchProjects(); }
+  }
+
+  const getSupervisorName = (supervisorId: string | null) => {
+    if (!supervisorId) return null;
+    const s = supervisors.find((sv) => sv.user_id === supervisorId);
+    return s?.full_name || "Unknown";
+  };
 
   const statusLabel = (s: string) => {
     const map: Record<string, { className: string; label: string }> = {
@@ -63,7 +99,6 @@ export default function ProjectsPage() {
         <Button variant="hero" size="default" onClick={() => setShowForm(true)}><Plus className="h-4 w-4 mr-1" /> New Project</Button>
       </div>
 
-      {/* Create form */}
       {showForm && (
         <form onSubmit={handleCreate} className="rounded-lg border border-gold bg-card p-6 space-y-4">
           <div className="flex justify-between items-center">
@@ -103,20 +138,62 @@ export default function ProjectsPage() {
         <div className="grid gap-4">
           {projects.map((p) => {
             const s = statusLabel(p.status);
+            const supervisorName = getSupervisorName(p.supervisor_id);
             return (
-              <div key={p.id} className="rounded-lg border border-gold bg-card p-5 flex items-center gap-4 hover:shadow-gold transition-all">
-                <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                  <FolderOpen className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-foreground truncate">{p.title}</h3>
-                  <p className="text-sm text-muted-foreground truncate">{p.description || "No description"}</p>
-                </div>
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${s.className}`}>{s.label}</span>
-                <div className="w-24 hidden sm:block">
-                  <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${p.progress}%` }} />
+              <div key={p.id} className="rounded-lg border border-gold bg-card p-5 space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                    <FolderOpen className="h-5 w-5" />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-foreground truncate">{p.title}</h3>
+                    <p className="text-sm text-muted-foreground truncate">{p.description || "No description"}</p>
+                  </div>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${s.className}`}>{s.label}</span>
+                  <div className="w-24 hidden sm:block">
+                    <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${p.progress}%` }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Supervisor info */}
+                <div className="flex items-center gap-2 ml-14">
+                  {supervisorName ? (
+                    <span className="text-xs text-muted-foreground">
+                      Supervisor: <span className="font-medium text-foreground">{supervisorName}</span>
+                    </span>
+                  ) : (
+                    <>
+                      {assigningProject === p.id ? (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={selectedSupervisor}
+                            onChange={(e) => setSelectedSupervisor(e.target.value)}
+                            className="rounded-md border border-gold bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          >
+                            <option value="">Select supervisor</option>
+                            {supervisors.map((sv) => (
+                              <option key={sv.user_id} value={sv.user_id}>
+                                {sv.full_name || "Unnamed"} {sv.department ? `(${sv.department})` : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <Button size="sm" variant="hero" className="h-7 text-xs" onClick={() => handleAssignSupervisor(p.id)} disabled={!selectedSupervisor}>
+                            Assign
+                          </Button>
+                          <button onClick={() => setAssigningProject(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAssigningProject(p.id)}
+                          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <UserPlus className="h-3 w-3" /> Assign Supervisor
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             );
