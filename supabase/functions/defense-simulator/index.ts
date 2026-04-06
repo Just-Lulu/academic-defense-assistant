@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { documentId, documentContent, projectId } = await req.json();
+    const { documentId, documentContent, projectId, numQuestions = 5, difficulty = "moderate", tone = "formal", answerLength = "detailed" } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -25,29 +25,26 @@ serve(async (req) => {
         global: { headers: { Authorization: authHeader } },
       });
 
-      // Get document info if documentId provided
       if (documentId) {
         const { data: doc } = await supabase
           .from("documents")
           .select("title, file_name")
           .eq("id", documentId)
-          .single();
+          .maybeSingle();
         if (doc) docTitle = doc.title || doc.file_name;
       }
 
-      // Get project context
       if (projectId) {
         const { data: project } = await supabase
           .from("projects")
           .select("title, description, abstract, department, faculty")
           .eq("id", projectId)
-          .single();
+          .maybeSingle();
         if (project) {
           projectContext = `\nProject: ${project.title}\nDescription: ${project.description || "N/A"}\nAbstract: ${project.abstract || "N/A"}\nDepartment: ${project.department || "N/A"}\nFaculty: ${project.faculty || "N/A"}`;
         }
       }
 
-      // If no projectId, try to get first project
       if (!projectId) {
         const { data: projects } = await supabase
           .from("projects")
@@ -60,16 +57,23 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = `You are an academic thesis defense examiner AI. Your task is to generate challenging but fair mock defense questions based on the provided document/project information.
+    const toneMap: Record<string, string> = {
+      formal: "Use a formal academic tone, as would be expected in a real thesis defense panel.",
+      conversational: "Use a conversational and encouraging tone, as a friendly but knowledgeable examiner.",
+      critical: "Use a critical and probing tone, challenging assumptions and pushing for deeper justification.",
+    };
 
-For each question, also provide a comprehensive suggested answer that demonstrates strong academic understanding.
+    const lengthMap: Record<string, string> = {
+      brief: "Keep suggested answers brief — 2-3 sentences each.",
+      detailed: "Provide detailed suggested answers — one solid paragraph each.",
+      comprehensive: "Provide comprehensive suggested answers — multiple paragraphs with examples and references.",
+    };
 
-Generate exactly 5 questions covering:
-1. Research gap and motivation
-2. Methodology justification
-3. Technical implementation details
-4. Evaluation approach
-5. Limitations and future work
+    const systemPrompt = `You are an academic thesis defense examiner AI. Generate ${difficulty}-difficulty mock defense questions.
+${toneMap[tone] || toneMap.formal}
+${lengthMap[answerLength] || lengthMap.detailed}
+
+Generate exactly ${numQuestions} questions with suggested answers.
 
 Respond in this exact JSON format:
 {
@@ -78,13 +82,10 @@ Respond in this exact JSON format:
   ]
 }`;
 
-    const userContent = `Generate mock thesis defense questions for the following:
-
+    const userContent = `Generate mock thesis defense questions for:
 Document: ${docTitle}
 ${projectContext}
-${documentContent ? `\nDocument content excerpt:\n${documentContent.substring(0, 3000)}` : ""}
-
-Generate 5 challenging defense questions with suggested answers.`;
+${documentContent ? `\nDocument content excerpt:\n${documentContent.substring(0, 3000)}` : ""}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -120,7 +121,6 @@ Generate 5 challenging defense questions with suggested answers.`;
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
 
-    // Parse JSON from response (handle markdown code blocks)
     let parsed;
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
