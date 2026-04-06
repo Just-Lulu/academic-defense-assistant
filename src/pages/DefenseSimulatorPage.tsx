@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { Brain, Upload, FileText, Loader2, Check } from "lucide-react";
+import { Brain, Upload, FileText, Loader2, Check, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Document = Tables<"documents">;
@@ -23,9 +25,15 @@ export default function DefenseSimulatorPage() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Customization options
+  const [numQuestions, setNumQuestions] = useState("5");
+  const [difficulty, setDifficulty] = useState("moderate");
+  const [tone, setTone] = useState("formal");
+  const [answerLength, setAnswerLength] = useState("detailed");
+
   useEffect(() => {
-    fetchDocuments();
-  }, []);
+    if (user) fetchDocuments();
+  }, [user]);
 
   async function fetchDocuments() {
     const { data, error } = await supabase
@@ -78,27 +86,25 @@ export default function DefenseSimulatorPage() {
     setQuestions(null);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/defense-simulator`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            documentId: selectedDocId || documents[0]?.id,
-          }),
-        }
-      );
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
 
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to generate questions");
+      const response = await supabase.functions.invoke("defense-simulator", {
+        body: {
+          documentId: selectedDocId || documents[0]?.id,
+          numQuestions: parseInt(numQuestions),
+          difficulty,
+          tone,
+          answerLength,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to generate questions");
       }
 
-      const data = await response.json();
-      if (data.questions?.length) {
+      const data = response.data;
+      if (data?.questions?.length) {
         setQuestions(data.questions);
       } else {
         toast.error("No questions generated. Try again.");
@@ -126,7 +132,7 @@ export default function DefenseSimulatorPage() {
       {documents.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-foreground">Choose from uploaded documents</h3>
-          <div className="grid gap-2 max-h-48 overflow-auto rounded-lg border border-gold bg-card p-3">
+          <div className="grid gap-2 max-h-48 overflow-auto rounded-lg border border-border bg-card p-3">
             {documents.map((doc) => (
               <button
                 key={doc.id}
@@ -147,7 +153,7 @@ export default function DefenseSimulatorPage() {
       )}
 
       {/* Upload area */}
-      <div className="rounded-lg border border-dashed border-gold bg-card p-8 text-center">
+      <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
         <div className="mx-auto h-14 w-14 rounded-md bg-primary/10 flex items-center justify-center text-primary mb-4">
           <Upload className="h-7 w-7" />
         </div>
@@ -155,30 +161,88 @@ export default function DefenseSimulatorPage() {
           {documents.length > 0 ? "Or upload a new document" : "Upload Your Thesis Document"}
         </h3>
         <p className="text-sm text-muted-foreground mt-1 mb-4">Supports PDF, DOCX up to 20MB</p>
-        <div className="flex justify-center gap-3">
-          <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} accept=".pdf,.docx,.doc,.txt" />
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            <FileText className="h-4 w-4 mr-1" />
-            {uploading ? "Uploading..." : "Choose File"}
-          </Button>
-          <Button
-            variant="hero"
-            onClick={handleSimulate}
-            disabled={isAnalyzing || (!selectedDocId && documents.length === 0)}
-          >
-            {isAnalyzing ? (
-              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Analyzing...</>
-            ) : (
-              <><Brain className="h-4 w-4 mr-1" /> Generate Questions</>
-            )}
-          </Button>
-        </div>
+        <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} accept=".pdf,.docx,.doc,.txt" />
+        <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          <FileText className="h-4 w-4 mr-1" />
+          {uploading ? "Uploading..." : "Choose File"}
+        </Button>
         {selectedDoc && (
           <p className="text-xs text-muted-foreground mt-3">
             Selected: <span className="font-medium text-foreground">{selectedDoc.file_name}</span>
           </p>
         )}
       </div>
+
+      {/* Customization Options */}
+      <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Settings2 className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold text-foreground text-sm">Customize Output</h3>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Number of Questions</Label>
+            <Select value={numQuestions} onValueChange={setNumQuestions}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3">3 Questions</SelectItem>
+                <SelectItem value="5">5 Questions</SelectItem>
+                <SelectItem value="8">8 Questions</SelectItem>
+                <SelectItem value="10">10 Questions</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Difficulty</Label>
+            <Select value={difficulty} onValueChange={setDifficulty}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="easy">Easy</SelectItem>
+                <SelectItem value="moderate">Moderate</SelectItem>
+                <SelectItem value="challenging">Challenging</SelectItem>
+                <SelectItem value="expert">Expert</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Tone</Label>
+            <Select value={tone} onValueChange={setTone}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="formal">Formal Academic</SelectItem>
+                <SelectItem value="conversational">Conversational</SelectItem>
+                <SelectItem value="critical">Critical/Probing</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Answer Length</Label>
+            <Select value={answerLength} onValueChange={setAnswerLength}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="brief">Brief (2-3 sentences)</SelectItem>
+                <SelectItem value="detailed">Detailed (paragraph)</SelectItem>
+                <SelectItem value="comprehensive">Comprehensive (multi-paragraph)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Generate Button */}
+      <Button
+        variant="default"
+        size="lg"
+        className="w-full"
+        onClick={handleSimulate}
+        disabled={isAnalyzing || (!selectedDocId && documents.length === 0)}
+      >
+        {isAnalyzing ? (
+          <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Analyzing Document...</>
+        ) : (
+          <><Brain className="h-4 w-4 mr-2" /> Generate Defense Questions</>
+        )}
+      </Button>
 
       {/* Results */}
       <AnimatePresence>
@@ -198,7 +262,7 @@ export default function DefenseSimulatorPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
-                className="rounded-lg border border-gold bg-card p-5 space-y-3"
+                className="rounded-lg border border-border bg-card p-5 space-y-3"
               >
                 <div className="flex items-start gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
