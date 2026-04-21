@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Brain,
   Bot,
+  Users,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -45,8 +46,9 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, role } = useAuth();
   const navigate = useNavigate();
+  const isSupervisor = role === "supervisor" || role === "admin";
   const isActive = (path: string) =>
     path === "/app" ? location.pathname === "/app" : location.pathname.startsWith(path);
 
