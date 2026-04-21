@@ -106,6 +106,25 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Supervisor */}
+        {isSupervisor && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[10px] tracking-[0.2em] uppercase">Supervision</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/app/supervisor")}>
+                    <NavLink to="/app/supervisor">
+                      <Users className="h-4 w-4" />
+                      {!collapsed && <span>Supervisor Hub</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>
