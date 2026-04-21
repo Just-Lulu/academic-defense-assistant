@@ -16,6 +16,7 @@ import SchedulePage from "./pages/SchedulePage";
 import MessagesPage from "./pages/MessagesPage";
 import DefenseSimulatorPage from "./pages/DefenseSimulatorPage";
 import ChatbotPage from "./pages/ChatbotPage";
+import SupervisorPage from "./pages/SupervisorPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="messages" element={<MessagesPage />} />
               <Route path="defense-simulator" element={<DefenseSimulatorPage />} />
               <Route path="chatbot" element={<ChatbotPage />} />
+              <Route path="supervisor" element={<SupervisorPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />

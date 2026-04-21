@@ -75,7 +75,7 @@ Be helpful, concise, and academic in tone. Reference the user's actual project d
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "openai/gpt-5",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,
