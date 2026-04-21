@@ -23,6 +23,9 @@ export type Database = {
           id: string
           mime_type: string | null
           project_id: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
           title: string
           updated_at: string
           uploaded_by: string
@@ -35,6 +38,9 @@ export type Database = {
           id?: string
           mime_type?: string | null
           project_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           title: string
           updated_at?: string
           uploaded_by: string
@@ -47,6 +53,9 @@ export type Database = {
           id?: string
           mime_type?: string | null
           project_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           title?: string
           updated_at?: string
           uploaded_by?: string
@@ -104,6 +113,7 @@ export type Database = {
       }
       milestones: {
         Row: {
+          approved: boolean
           created_at: string
           created_by: string
           description: string | null
@@ -111,10 +121,12 @@ export type Database = {
           id: string
           project_id: string
           status: string
+          supervisor_feedback: string | null
           title: string
           updated_at: string
         }
         Insert: {
+          approved?: boolean
           created_at?: string
           created_by: string
           description?: string | null
@@ -122,10 +134,12 @@ export type Database = {
           id?: string
           project_id: string
           status?: string
+          supervisor_feedback?: string | null
           title: string
           updated_at?: string
         }
         Update: {
+          approved?: boolean
           created_at?: string
           created_by?: string
           description?: string | null
@@ -133,6 +147,7 @@ export type Database = {
           id?: string
           project_id?: string
           status?: string
+          supervisor_feedback?: string | null
           title?: string
           updated_at?: string
         }

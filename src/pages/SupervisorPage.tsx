@@ -1,15 +1,32 @@
-import { useEffect, useState } from "react";
-import { Users, FolderOpen, FileText, Target, CheckCircle, Clock, AlertCircle, Download, MessageSquare } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Users, FolderOpen, FileText, Target, CheckCircle, Clock, AlertCircle, Download,
+  MessageSquare, Sparkles, ShieldCheck, Send, ArrowLeft,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Project = Tables<"projects">;
 type Document = Tables<"documents">;
 type Milestone = Tables<"milestones">;
+
+interface ChatMessage {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+interface Insights {
+  summary: string;
+  weaknesses: string[];
+  defenseQuestions: string[];
+}
 
 const milestoneStatusCfg = {
   completed: { icon: CheckCircle, badge: "border-success/30 bg-success/10 text-success" },
@@ -17,9 +34,14 @@ const milestoneStatusCfg = {
   overdue: { icon: AlertCircle, badge: "border-destructive/30 bg-destructive/10 text-destructive" },
 };
 
+const reviewStatusCfg: Record<string, { label: string; cls: string }> = {
+  not_reviewed: { label: "Not reviewed", cls: "border-muted-foreground/30 bg-muted/40 text-muted-foreground" },
+  reviewed: { label: "Reviewed", cls: "border-success/30 bg-success/10 text-success" },
+  needs_revision: { label: "Needs revision", cls: "border-destructive/30 bg-destructive/10 text-destructive" },
+};
+
 export default function SupervisorPage() {
   const { user, role } = useAuth();
-  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [students, setStudents] = useState<Record<string, string>>({});
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -27,39 +49,62 @@ export default function SupervisorPage() {
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // New milestone form
+  // Milestones
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [mTitle, setMTitle] = useState("");
   const [mDesc, setMDesc] = useState("");
   const [mDue, setMDue] = useState("");
   const [savingMilestone, setSavingMilestone] = useState(false);
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (user) fetchAssignedProjects();
-  }, [user]);
+  // AI insights
+  const [insightsDocId, setInsightsDocId] = useState<string | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insights, setInsights] = useState<Insights | null>(null);
 
+  // Inline messaging
+  const [chatPartnerId, setChatPartnerId] = useState<string | null>(null);
+  const [chatPartnerName, setChatPartnerName] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { if (user) fetchAssignedProjects(); }, [user]);
+  useEffect(() => { if (activeProject) fetchProjectDetails(activeProject.id); }, [activeProject]);
+  useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
+
+  // Realtime for inline chat
   useEffect(() => {
-    if (activeProject) fetchProjectDetails(activeProject.id);
-  }, [activeProject]);
+    if (!user || !chatPartnerId) return;
+    const channel = supabase
+      .channel(`sup-chat-${chatPartnerId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+        const msg = payload.new as ChatMessage;
+        const isThisChat =
+          (msg.sender_id === user.id && msg.receiver_id === chatPartnerId) ||
+          (msg.sender_id === chatPartnerId && msg.receiver_id === user.id);
+        if (isThisChat) {
+          setChatMessages((prev) => (prev.find((m) => m.id === msg.id) ? prev : [...prev, msg]));
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, chatPartnerId]);
 
   async function fetchAssignedProjects() {
     if (!user) return;
     setLoading(true);
     const { data, error } = await supabase
-      .from("projects")
-      .select("*")
+      .from("projects").select("*")
       .eq("supervisor_id", user.id)
       .order("created_at", { ascending: false });
     if (error) { toast.error(error.message); setLoading(false); return; }
     setProjects(data || []);
 
-    // fetch student names
     const studentIds = Array.from(new Set((data || []).map((p) => p.student_id)));
     if (studentIds.length) {
       const { data: profs } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", studentIds);
+        .from("profiles").select("user_id, full_name").in("user_id", studentIds);
       const map: Record<string, string> = {};
       profs?.forEach((p) => { map[p.user_id] = p.full_name || "Unknown student"; });
       setStudents(map);
@@ -74,6 +119,9 @@ export default function SupervisorPage() {
     ]);
     setDocuments(docsRes.data || []);
     setMilestones(msRes.data || []);
+    const drafts: Record<string, string> = {};
+    (msRes.data || []).forEach((m) => { drafts[m.id] = m.supervisor_feedback || ""; });
+    setFeedbackDrafts(drafts);
   }
 
   async function updateProjectStatus(projectId: string, status: string) {
@@ -101,11 +149,46 @@ export default function SupervisorPage() {
     window.open(data.signedUrl, "_blank");
   }
 
+  async function setDocReviewStatus(doc: Document, status: string) {
+    if (!user) return;
+    const { error } = await supabase
+      .from("documents")
+      .update({
+        review_status: status,
+        reviewed_at: status === "not_reviewed" ? null : new Date().toISOString(),
+        reviewed_by: status === "not_reviewed" ? null : user.id,
+      })
+      .eq("id", doc.id);
+    if (error) toast.error(error.message);
+    else if (activeProject) {
+      toast.success("Review status updated");
+      fetchProjectDetails(activeProject.id);
+    }
+  }
+
   async function toggleMilestone(m: Milestone) {
     const newStatus = m.status === "completed" ? "upcoming" : "completed";
     const { error } = await supabase.from("milestones").update({ status: newStatus }).eq("id", m.id);
     if (error) toast.error(error.message);
     else if (activeProject) fetchProjectDetails(activeProject.id);
+  }
+
+  async function saveFeedback(m: Milestone) {
+    const { error } = await supabase
+      .from("milestones")
+      .update({ supervisor_feedback: feedbackDrafts[m.id] ?? "" })
+      .eq("id", m.id);
+    if (error) toast.error(error.message);
+    else { toast.success("Feedback saved"); if (activeProject) fetchProjectDetails(activeProject.id); }
+  }
+
+  async function toggleApproval(m: Milestone) {
+    const { error } = await supabase
+      .from("milestones")
+      .update({ approved: !m.approved })
+      .eq("id", m.id);
+    if (error) toast.error(error.message);
+    else { toast.success(!m.approved ? "Milestone approved" : "Approval removed"); if (activeProject) fetchProjectDetails(activeProject.id); }
   }
 
   async function createMilestone(e: React.FormEvent) {
@@ -128,9 +211,51 @@ export default function SupervisorPage() {
     setSavingMilestone(false);
   }
 
-  function messageStudent(studentId: string) {
-    navigate("/app/messages");
-    // Light navigation; user can pick the conversation
+  async function loadInsights(doc: Document) {
+    setInsightsDocId(doc.id);
+    setInsights(null);
+    setInsightsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("document-insights", {
+        body: { documentId: doc.id, projectId: doc.project_id },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      setInsights(data as Insights);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate insights");
+    } finally {
+      setInsightsLoading(false);
+    }
+  }
+
+  async function openInlineChat(studentId: string, name: string) {
+    if (!user) return;
+    setChatPartnerId(studentId);
+    setChatPartnerName(name);
+    setChatMessages([]);
+    const { data, error } = await supabase
+      .from("messages").select("*")
+      .or(`and(sender_id.eq.${user.id},receiver_id.eq.${studentId}),and(sender_id.eq.${studentId},receiver_id.eq.${user.id})`)
+      .order("created_at", { ascending: true });
+    if (error) toast.error(error.message);
+    else setChatMessages(data || []);
+    await supabase.from("messages")
+      .update({ is_read: true })
+      .eq("sender_id", studentId).eq("receiver_id", user.id).eq("is_read", false);
+  }
+
+  async function sendInlineMessage() {
+    if (!user || !chatPartnerId || !chatInput.trim()) return;
+    const content = chatInput.trim();
+    setChatInput("");
+    const { error } = await supabase.from("messages").insert({
+      sender_id: user.id,
+      receiver_id: chatPartnerId,
+      content,
+      project_id: activeProject?.id ?? null,
+    });
+    if (error) toast.error(error.message);
   }
 
   if (role && role !== "supervisor" && role !== "admin") {
@@ -143,14 +268,17 @@ export default function SupervisorPage() {
     );
   }
 
+  // ============ Project detail view ============
   if (activeProject) {
     const completedCount = milestones.filter((m) => m.status === "completed").length;
     return (
       <div className="space-y-6">
-        <button onClick={() => setActiveProject(null)} className="text-sm text-muted-foreground hover:text-foreground">
+        <button onClick={() => { setActiveProject(null); setChatPartnerId(null); setInsightsDocId(null); setInsights(null); }}
+          className="text-sm text-muted-foreground hover:text-foreground">
           ← Back to assigned projects
         </button>
 
+        {/* Project header */}
         <div className="rounded-lg border border-gold bg-card p-6 space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -160,14 +288,15 @@ export default function SupervisorPage() {
                 {activeProject.department && <> · {activeProject.department}</>}
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => messageStudent(activeProject.student_id)}>
-              <MessageSquare className="h-4 w-4 mr-1" /> Message
+            <Button
+              variant="outline" size="sm"
+              onClick={() => openInlineChat(activeProject.student_id, students[activeProject.student_id] || "Student")}
+            >
+              <MessageSquare className="h-4 w-4 mr-1" /> Message student
             </Button>
           </div>
 
-          {activeProject.description && (
-            <p className="text-sm text-foreground">{activeProject.description}</p>
-          )}
+          {activeProject.description && <p className="text-sm text-foreground">{activeProject.description}</p>}
           {activeProject.abstract && (
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Abstract</p>
@@ -195,9 +324,7 @@ export default function SupervisorPage() {
                 Progress: {activeProject.progress}%
               </label>
               <input
-                type="range"
-                min={0}
-                max={100}
+                type="range" min={0} max={100}
                 value={activeProject.progress}
                 onChange={(e) => updateProgress(activeProject.id, parseInt(e.target.value, 10))}
                 className="mt-3 w-full accent-primary"
@@ -205,6 +332,50 @@ export default function SupervisorPage() {
             </div>
           </div>
         </div>
+
+        {/* Inline chat panel */}
+        {chatPartnerId && (
+          <div className="rounded-lg border border-gold bg-card p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button onClick={() => setChatPartnerId(null)} className="text-muted-foreground hover:text-foreground">
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <MessageSquare className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-foreground text-sm">Chat with {chatPartnerName}</span>
+              </div>
+            </div>
+            <div className="max-h-72 overflow-auto space-y-2 rounded-md border border-border bg-background p-3">
+              {chatMessages.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No messages yet — start the conversation.</p>
+              ) : chatMessages.map((m) => (
+                <div key={m.id} className={`flex ${m.sender_id === user!.id ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
+                    m.sender_id === user!.id ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-foreground border border-border"
+                  }`}>
+                    <p>{m.content}</p>
+                    <p className={`text-[10px] mt-1 ${m.sender_id === user!.id ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                      {new Date(m.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              <div ref={chatBottomRef} />
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendInlineMessage()}
+                placeholder="Type a message..."
+                className="flex-1 rounded-md border border-gold bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <Button onClick={sendInlineMessage} disabled={!chatInput.trim()} size="sm">
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Documents */}
         <div className="rounded-lg border border-gold bg-card p-6 space-y-3">
@@ -218,18 +389,78 @@ export default function SupervisorPage() {
             <p className="text-sm text-muted-foreground py-4 text-center">No documents submitted yet.</p>
           ) : (
             <div className="divide-y divide-border">
-              {documents.map((d) => (
-                <div key={d.id} className="flex items-center gap-3 py-3">
-                  <FileText className="h-4 w-4 text-primary shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{d.title}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(d.created_at).toLocaleDateString()}</p>
+              {documents.map((d) => {
+                const rs = reviewStatusCfg[d.review_status] || reviewStatusCfg.not_reviewed;
+                return (
+                  <div key={d.id} className="py-3 space-y-2">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <FileText className="h-4 w-4 text-primary shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{d.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(d.created_at).toLocaleDateString()}
+                          {d.reviewed_at && <> · Reviewed {new Date(d.reviewed_at).toLocaleDateString()}</>}
+                        </p>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border ${rs.cls}`}>{rs.label}</span>
+                      <select
+                        value={d.review_status}
+                        onChange={(e) => setDocReviewStatus(d, e.target.value)}
+                        className="text-xs rounded-md border border-gold bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="not_reviewed">Not reviewed</option>
+                        <option value="reviewed">Reviewed</option>
+                        <option value="needs_revision">Needs revision</option>
+                      </select>
+                      <Button size="sm" variant="ghost" onClick={() => downloadDoc(d)}>
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={() => insightsDocId === d.id ? setInsightsDocId(null) : loadInsights(d)}
+                      >
+                        <Sparkles className="h-4 w-4 mr-1" />
+                        {insightsDocId === d.id ? "Hide insights" : "AI insights"}
+                      </Button>
+                    </div>
+
+                    {insightsDocId === d.id && (
+                      <div className="ml-7 rounded-md border border-primary/30 bg-primary/5 p-4 space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                          <Sparkles className="h-4 w-4" /> AI Insights
+                        </div>
+                        {insightsLoading ? (
+                          <p className="text-xs text-muted-foreground">Analyzing document with AI…</p>
+                        ) : insights ? (
+                          <div className="space-y-3 text-sm">
+                            {insights.summary && (
+                              <p className="text-foreground">{insights.summary}</p>
+                            )}
+                            {insights.weaknesses?.length > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Weaknesses</p>
+                                <ul className="list-disc pl-5 space-y-1 text-foreground">
+                                  {insights.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                            {insights.defenseQuestions?.length > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Suggested Defense Questions</p>
+                                <ul className="list-decimal pl-5 space-y-1 text-foreground">
+                                  {insights.defenseQuestions.map((q, i) => <li key={i}>{q}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No insights available.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => downloadDoc(d)}>
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -248,18 +479,14 @@ export default function SupervisorPage() {
 
           {showMilestoneForm && (
             <form onSubmit={createMilestone} className="rounded-md border border-gold bg-background p-4 space-y-3">
-              <input
-                required value={mTitle} onChange={(e) => setMTitle(e.target.value)}
-                placeholder="Title" className="w-full rounded-md border border-gold bg-card px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              <textarea
-                value={mDesc} onChange={(e) => setMDesc(e.target.value)} rows={2}
-                placeholder="Description (optional)" className="w-full rounded-md border border-gold bg-card px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              <input
-                type="date" required value={mDue} onChange={(e) => setMDue(e.target.value)}
-                className="w-full rounded-md border border-gold bg-card px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              />
+              <input required value={mTitle} onChange={(e) => setMTitle(e.target.value)}
+                placeholder="Title"
+                className="w-full rounded-md border border-gold bg-card px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              <textarea value={mDesc} onChange={(e) => setMDesc(e.target.value)} rows={2}
+                placeholder="Description (optional)"
+                className="w-full rounded-md border border-gold bg-card px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              <input type="date" required value={mDue} onChange={(e) => setMDue(e.target.value)}
+                className="w-full rounded-md border border-gold bg-card px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
               <Button type="submit" variant="hero" size="sm" disabled={savingMilestone}>
                 {savingMilestone ? "Saving..." : "Add Milestone"}
               </Button>
@@ -274,16 +501,43 @@ export default function SupervisorPage() {
                 const cfg = milestoneStatusCfg[m.status as keyof typeof milestoneStatusCfg] || milestoneStatusCfg.upcoming;
                 const Icon = cfg.icon;
                 return (
-                  <div key={m.id} className="flex items-center gap-3 rounded-md border border-border p-3">
-                    <button onClick={() => toggleMilestone(m)} className="shrink-0">
-                      <Icon className={`h-5 w-5 ${m.status === "completed" ? "text-success" : "text-info"}`} />
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium text-foreground ${m.status === "completed" ? "line-through opacity-60" : ""}`}>{m.title}</p>
-                      {m.description && <p className="text-xs text-muted-foreground truncate">{m.description}</p>}
+                  <div key={m.id} className="rounded-md border border-border p-3 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => toggleMilestone(m)} className="shrink-0">
+                        <Icon className={`h-5 w-5 ${m.status === "completed" ? "text-success" : "text-info"}`} />
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium text-foreground ${m.status === "completed" ? "line-through opacity-60" : ""}`}>{m.title}</p>
+                        {m.description && <p className="text-xs text-muted-foreground truncate">{m.description}</p>}
+                      </div>
+                      <span className="text-xs text-muted-foreground hidden sm:block">{m.due_date}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${cfg.badge}`}>{m.status}</span>
+                      {m.approved && (
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-success/30 bg-success/10 text-success flex items-center gap-1">
+                          <ShieldCheck className="h-3 w-3" /> Approved
+                        </span>
+                      )}
                     </div>
-                    <span className="text-xs text-muted-foreground hidden sm:block">{m.due_date}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${cfg.badge}`}>{m.status}</span>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Supervisor feedback</label>
+                      <textarea
+                        value={feedbackDrafts[m.id] ?? ""}
+                        onChange={(e) => setFeedbackDrafts((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                        rows={2}
+                        placeholder="Add comments, corrections, or guidance for the student…"
+                        className="w-full rounded-md border border-gold bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => saveFeedback(m)}>
+                          Save feedback
+                        </Button>
+                        <Button size="sm" variant={m.approved ? "outline" : "hero"} onClick={() => toggleApproval(m)}>
+                          <ShieldCheck className="h-4 w-4 mr-1" />
+                          {m.approved ? "Revoke approval" : "Mark approved"}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -294,6 +548,7 @@ export default function SupervisorPage() {
     );
   }
 
+  // ============ Project list view ============
   return (
     <div className="space-y-6">
       <div>
@@ -313,31 +568,35 @@ export default function SupervisorPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {projects.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setActiveProject(p)}
-              className="text-left rounded-lg border border-gold bg-card p-5 hover:shadow-gold transition-all space-y-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-foreground truncate">{p.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Student: <span className="text-foreground">{students[p.student_id] || "—"}</span>
-                  </p>
+            <div key={p.id} className="rounded-lg border border-gold bg-card p-5 hover:shadow-gold transition-all space-y-3">
+              <button onClick={() => setActiveProject(p)} className="text-left w-full space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-foreground truncate">{p.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Student: <span className="text-foreground">{students[p.student_id] || "—"}</span>
+                    </p>
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary capitalize shrink-0">
+                    {p.status.replace("_", " ")}
+                  </span>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary capitalize shrink-0">
-                  {p.status.replace("_", " ")}
-                </span>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                  <span>Progress</span><span>{p.progress}%</span>
+                <div>
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <span>Progress</span><span>{p.progress}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${p.progress}%` }} />
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${p.progress}%` }} />
-                </div>
-              </div>
-            </button>
+              </button>
+              <Button
+                size="sm" variant="outline" className="w-full"
+                onClick={() => { setActiveProject(p); openInlineChat(p.student_id, students[p.student_id] || "Student"); }}
+              >
+                <MessageSquare className="h-4 w-4 mr-1" /> Message {students[p.student_id] || "student"}
+              </Button>
+            </div>
           ))}
         </div>
       )}
