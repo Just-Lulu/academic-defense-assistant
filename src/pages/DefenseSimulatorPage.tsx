@@ -14,7 +14,18 @@ type Document = Tables<"documents">;
 interface GeneratedQuestion {
   question: string;
   suggestedAnswer: string;
+  category?: string;
 }
+
+const CATEGORY_LABEL: Record<string, string> = {
+  motivation: "Motivation",
+  methodology: "Methodology",
+  results: "Results",
+  validity: "Validity",
+  contribution: "Contribution",
+  ethics: "Ethics",
+  future_work: "Future Work",
+};
 
 export default function DefenseSimulatorPage() {
   const { user } = useAuth();
@@ -268,7 +279,14 @@ export default function DefenseSimulatorPage() {
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
                     {i + 1}
                   </span>
-                  <h3 className="font-semibold text-foreground">{q.question}</h3>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-foreground">{q.question}</h3>
+                    {q.category && (
+                      <span className="mt-1 inline-block text-[10px] uppercase tracking-wider text-primary border border-primary/40 rounded px-1.5 py-0.5">
+                        {CATEGORY_LABEL[q.category] || q.category}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="ml-9 rounded-md bg-secondary p-4 border border-border">
                   <p className="text-[10px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">Suggested Answer</p>
