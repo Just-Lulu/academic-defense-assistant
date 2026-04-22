@@ -8,6 +8,7 @@ import {
   Brain,
   Bot,
   Users,
+  Shield,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -49,6 +50,7 @@ export function AppSidebar() {
   const { signOut, role } = useAuth();
   const navigate = useNavigate();
   const isSupervisor = role === "supervisor" || role === "admin";
+  const isAdmin = role === "admin";
   const isActive = (path: string) =>
     path === "/app" ? location.pathname === "/app" : location.pathname.startsWith(path);
 
@@ -118,6 +120,25 @@ export function AppSidebar() {
                     <NavLink to="/app/supervisor">
                       <Users className="h-4 w-4" />
                       {!collapsed && <span>Supervisor Hub</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Admin */}
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[10px] tracking-[0.2em] uppercase">Coordination</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/app/admin")}>
+                    <NavLink to="/app/admin">
+                      <Shield className="h-4 w-4" />
+                      {!collapsed && <span>Coordinator Console</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
