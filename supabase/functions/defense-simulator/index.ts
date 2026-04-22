@@ -6,17 +6,55 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Extract plain text from a stored document (best-effort).
+// PDFs/DOCX won't fully decode without a parser, but we extract printable
+// ASCII runs which often catches abstract/intro content from text-based PDFs.
+async function extractDocumentText(
+  supabase: ReturnType<typeof createClient>,
+  filePath: string,
+  mimeType: string | null,
+): Promise<string> {
+  try {
+    const { data, error } = await supabase.storage.from("documents").download(filePath);
+    if (error || !data) return "";
+
+    if (mimeType?.startsWith("text/") || filePath.endsWith(".txt") || filePath.endsWith(".md")) {
+      return await data.text();
+    }
+
+    // For binary docs, pull readable ASCII runs of length >= 4
+    const buf = new Uint8Array(await data.arrayBuffer());
+    const chunks: string[] = [];
+    let current = "";
+    for (let i = 0; i < buf.length; i++) {
+      const b = buf[i];
+      if (b >= 32 && b < 127) {
+        current += String.fromCharCode(b);
+      } else {
+        if (current.length >= 4) chunks.push(current);
+        current = "";
+      }
+    }
+    if (current.length >= 4) chunks.push(current);
+    return chunks.join(" ").replace(/\s+/g, " ").slice(0, 8000);
+  } catch (e) {
+    console.error("extractDocumentText error:", e);
+    return "";
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { documentId, documentContent, projectId, numQuestions = 5, difficulty = "moderate", tone = "formal", answerLength = "detailed" } = await req.json();
+    const { documentId, projectId, numQuestions = 5, difficulty = "moderate", tone = "formal", answerLength = "detailed" } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const authHeader = req.headers.get("Authorization");
     let projectContext = "";
     let docTitle = "uploaded document";
+    let documentContent = "";
 
     if (authHeader) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -25,27 +63,33 @@ serve(async (req) => {
         global: { headers: { Authorization: authHeader } },
       });
 
+      let resolvedProjectId: string | null = projectId ?? null;
+
       if (documentId) {
         const { data: doc } = await supabase
           .from("documents")
-          .select("title, file_name")
+          .select("title, file_name, file_path, mime_type, project_id")
           .eq("id", documentId)
           .maybeSingle();
-        if (doc) docTitle = doc.title || doc.file_name;
+        if (doc) {
+          docTitle = doc.title || doc.file_name;
+          if (!resolvedProjectId && doc.project_id) resolvedProjectId = doc.project_id;
+          if (doc.file_path) {
+            documentContent = await extractDocumentText(supabase, doc.file_path, doc.mime_type);
+          }
+        }
       }
 
-      if (projectId) {
+      if (resolvedProjectId) {
         const { data: project } = await supabase
           .from("projects")
           .select("title, description, abstract, department, faculty")
-          .eq("id", projectId)
+          .eq("id", resolvedProjectId)
           .maybeSingle();
         if (project) {
           projectContext = `\nProject: ${project.title}\nDescription: ${project.description || "N/A"}\nAbstract: ${project.abstract || "N/A"}\nDepartment: ${project.department || "N/A"}\nFaculty: ${project.faculty || "N/A"}`;
         }
-      }
-
-      if (!projectId) {
+      } else {
         const { data: projects } = await supabase
           .from("projects")
           .select("title, description, abstract, department, faculty")
@@ -58,34 +102,35 @@ serve(async (req) => {
     }
 
     const toneMap: Record<string, string> = {
-      formal: "Use a formal academic tone, as would be expected in a real thesis defense panel.",
+      formal: "Use a formal academic tone, as expected from a real thesis defense panel.",
       conversational: "Use a conversational and encouraging tone, as a friendly but knowledgeable examiner.",
       critical: "Use a critical and probing tone, challenging assumptions and pushing for deeper justification.",
     };
 
     const lengthMap: Record<string, string> = {
-      brief: "Keep suggested answers brief — 2-3 sentences each.",
-      detailed: "Provide detailed suggested answers — one solid paragraph each.",
-      comprehensive: "Provide comprehensive suggested answers — multiple paragraphs with examples and references.",
+      brief: "Suggested answers: 2-3 sentences each.",
+      detailed: "Suggested answers: one solid paragraph each (4-6 sentences).",
+      comprehensive: "Suggested answers: multiple paragraphs with examples and rationale.",
     };
 
-    const systemPrompt = `You are an academic thesis defense examiner AI. Generate ${difficulty}-difficulty mock defense questions.
-${toneMap[tone] || toneMap.formal}
-${lengthMap[answerLength] || lengthMap.detailed}
+    const systemPrompt = `You are an experienced academic thesis defense examiner with deep expertise in research methodology, study design, and academic rigor.
 
-Generate exactly ${numQuestions} questions with suggested answers.
+Your task: generate exactly ${numQuestions} ${difficulty}-difficulty mock defense questions that a real examination panel would ask, plus model answers grounded ONLY in the provided document and project context.
 
-Respond in this exact JSON format:
-{
-  "questions": [
-    { "question": "...", "suggestedAnswer": "..." }
-  ]
-}`;
+Quality requirements (CRITICAL — your answer is graded on accuracy):
+1. Each question must be specific to THIS project — never generic. Reference actual concepts, methods, terminology, or claims from the document/abstract.
+2. Cover diverse angles: motivation/problem, methodology, validity/limitations, results interpretation, contribution/novelty, ethical considerations, future work.
+3. Suggested answers must be defensible, factually grounded in the supplied context, and demonstrate critical thinking. Do not fabricate findings not present in the source.
+4. If the source material is thin, base questions on the project's stated domain and standard rigorous standards for that field — but flag assumptions clearly inside the answer.
+5. ${toneMap[tone] || toneMap.formal}
+6. ${lengthMap[answerLength] || lengthMap.detailed}
+
+Use the provided tool to return your answer.`;
 
     const userContent = `Generate mock thesis defense questions for:
-Document: ${docTitle}
+Document title: ${docTitle}
 ${projectContext}
-${documentContent ? `\nDocument content excerpt:\n${documentContent.substring(0, 3000)}` : ""}`;
+${documentContent ? `\n--- Document content excerpt ---\n${documentContent.substring(0, 6000)}\n--- end excerpt ---` : "\n(No extractable text from the document — rely on project context.)"}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -99,6 +144,44 @@ ${documentContent ? `\nDocument content excerpt:\n${documentContent.substring(0,
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
         ],
+        // Force structured output via tool calling — far more reliable than JSON parsing
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "submit_defense_questions",
+              description: "Submit the generated defense questions and suggested answers.",
+              parameters: {
+                type: "object",
+                properties: {
+                  questions: {
+                    type: "array",
+                    minItems: numQuestions,
+                    maxItems: numQuestions,
+                    items: {
+                      type: "object",
+                      properties: {
+                        question: { type: "string", description: "The mock defense question." },
+                        suggestedAnswer: { type: "string", description: "Defensible model answer grounded in the source." },
+                        category: {
+                          type: "string",
+                          enum: ["motivation", "methodology", "results", "validity", "contribution", "ethics", "future_work"],
+                          description: "Question category.",
+                        },
+                      },
+                      required: ["question", "suggestedAnswer", "category"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["questions"],
+                additionalProperties: false,
+              },
+            },
+          },
+        ],
+        tool_choice: { type: "function", function: { name: "submit_defense_questions" } },
+        reasoning: { effort: "medium" },
       }),
     });
 
@@ -119,15 +202,24 @@ ${documentContent ? `\nDocument content excerpt:\n${documentContent.substring(0,
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    let parsed: { questions: Array<{ question: string; suggestedAnswer: string; category?: string }> } = { questions: [] };
 
-    let parsed;
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { questions: [] };
-    } catch {
-      console.error("Failed to parse AI response:", content);
-      parsed = { questions: [] };
+    if (toolCall?.function?.arguments) {
+      try {
+        parsed = JSON.parse(toolCall.function.arguments);
+      } catch (e) {
+        console.error("Failed to parse tool arguments:", e, toolCall.function.arguments);
+      }
+    } else {
+      // Fallback: try to parse content as JSON
+      const content = data.choices?.[0]?.message?.content || "";
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        console.error("No tool_call and content not JSON:", content);
+      }
     }
 
     return new Response(JSON.stringify(parsed), {
