@@ -6,6 +6,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Heuristic: only fetch project context (RAG) when the user's message
+// looks like it actually needs it. This dramatically cuts first-token latency.
+const RAG_KEYWORDS = [
+  "my project", "project", "thesis", "dissertation", "abstract",
+  "milestone", "deadline", "due", "document", "upload", "supervisor",
+  "department", "faculty", "progress", "status", "chapter", "defense",
+];
+
+function needsProjectContext(messages: Array<{ role: string; content: string }>): boolean {
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  if (!lastUser) return false;
+  const lower = lastUser.content.toLowerCase();
+  return RAG_KEYWORDS.some((k) => lower.includes(k));
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -14,59 +29,47 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Get auth token to fetch user's documents for RAG
     const authHeader = req.headers.get("Authorization");
     let documentContext = "";
 
-    if (authHeader) {
+    // Only run RAG queries when the question seems related to the user's data.
+    if (authHeader && needsProjectContext(messages)) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "";
       const supabase = createClient(supabaseUrl, supabaseKey, {
         global: { headers: { Authorization: authHeader } },
       });
 
-      // Fetch user's projects for context
-      const { data: projects } = await supabase
-        .from("projects")
-        .select("title, description, abstract, status, department, faculty")
-        .limit(10);
+      // Run all three context fetches in parallel for speed
+      const [projectsRes, documentsRes, milestonesRes] = await Promise.all([
+        supabase.from("projects").select("title, description, abstract, status, department, faculty").limit(5),
+        supabase.from("documents").select("title, file_name, review_status, created_at").limit(10),
+        supabase.from("milestones").select("title, description, status, due_date, approved").limit(10),
+      ]);
 
-      // Fetch user's documents metadata
-      const { data: documents } = await supabase
-        .from("documents")
-        .select("title, file_name, mime_type, created_at")
-        .limit(20);
-
-      // Fetch milestones
-      const { data: milestones } = await supabase
-        .from("milestones")
-        .select("title, description, status, due_date")
-        .limit(20);
+      const projects = projectsRes.data;
+      const documents = documentsRes.data;
+      const milestones = milestonesRes.data;
 
       if (projects?.length) {
         documentContext += "\n\n## User's Projects:\n" +
-          projects.map(p => `- **${p.title}** (${p.status}): ${p.description || ""}\n  Abstract: ${p.abstract || "N/A"}\n  Dept: ${p.department || "N/A"}, Faculty: ${p.faculty || "N/A"}`).join("\n");
+          projects.map(p => `- **${p.title}** (${p.status}): ${p.description || ""} | Dept: ${p.department || "N/A"}`).join("\n");
       }
       if (documents?.length) {
         documentContext += "\n\n## User's Documents:\n" +
-          documents.map(d => `- ${d.title} (${d.file_name}) - uploaded ${d.created_at}`).join("\n");
+          documents.map(d => `- ${d.title} (${d.review_status})`).join("\n");
       }
       if (milestones?.length) {
         documentContext += "\n\n## User's Milestones:\n" +
-          milestones.map(m => `- **${m.title}** (${m.status}) - due ${m.due_date}: ${m.description || ""}`).join("\n");
+          milestones.map(m => `- **${m.title}** (${m.status}, due ${m.due_date}${m.approved ? ", approved" : ""})`).join("\n");
       }
     }
 
-    const systemPrompt = `You are the ORPTS AI Assistant — an intelligent helper for the Online Research Project Tracking & Supervision system. You help students and supervisors with:
-- Project management questions
-- Supervision guidelines and best practices
-- Thesis writing and defense preparation advice
-- System usage and navigation help
-- Academic research methodology guidance (especially Design Science Research)
+    const systemPrompt = `You are the ORPTS AI Assistant for the Online Research Project Tracking & Supervision system. Help students and supervisors with project management, supervision guidelines, thesis writing, defense prep, system navigation, and research methodology (Design Science Research).
 
-${documentContext ? `Here is the user's current data from the system for context:${documentContext}` : "The user has no data in the system yet."}
+${documentContext ? `Context from user's data:${documentContext}` : ""}
 
-Be helpful, concise, and academic in tone. Reference the user's actual project data when relevant.`;
+Be concise, academic, and direct. Reference user data only when relevant.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -75,7 +78,8 @@ Be helpful, concise, and academic in tone. Reference the user's actual project d
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5",
+        // Switched to Gemini Flash for ~3-5x faster first-token latency
+        model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,
