@@ -62,44 +62,65 @@ export default function DashboardHome() {
 /* -------------------- ADMIN: command-center layout -------------------- */
 function AdminDash() {
   const navigate = useNavigate();
-  const [counts, setCounts] = useState({ users: 0, projects: 0, unassigned: 0, overdue: 0, pendingReviews: 0 });
+  const { user } = useAuth();
+  const [counts, setCounts] = useState({ users: 0, projects: 0, unassigned: 0, overdue: 0, pendingReviews: 0, unread: 0 });
+
+  async function refresh() {
+    const [profilesRes, projectsRes, milestonesRes, documentsRes, unreadRes] = await Promise.all([
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+      supabase.from("projects").select("id, supervisor_id"),
+      supabase.from("milestones").select("status, due_date"),
+      supabase.from("documents").select("review_status"),
+      user
+        ? supabase.from("messages").select("id", { count: "exact", head: true }).eq("receiver_id", user.id).eq("is_read", false)
+        : Promise.resolve({ count: 0 } as any),
+    ]);
+    const projects = projectsRes.data || [];
+    const ms = milestonesRes.data || [];
+    const docs = documentsRes.data || [];
+    setCounts({
+      users: profilesRes.count || 0,
+      projects: projects.length,
+      unassigned: projects.filter((p: any) => !p.supervisor_id).length,
+      overdue: ms.filter((m: any) => m.status !== "completed" && new Date(m.due_date) < new Date()).length,
+      pendingReviews: docs.filter((d: any) => d.review_status === "not_reviewed").length,
+      unread: (unreadRes as any).count || 0,
+    });
+  }
 
   useEffect(() => {
-    (async () => {
-      const [profilesRes, projectsRes, milestonesRes, documentsRes] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
-        supabase.from("projects").select("id, supervisor_id"),
-        supabase.from("milestones").select("status, due_date"),
-        supabase.from("documents").select("review_status"),
-      ]);
-      const projects = projectsRes.data || [];
-      const ms = milestonesRes.data || [];
-      const docs = documentsRes.data || [];
-      setCounts({
-        users: profilesRes.count || 0,
-        projects: projects.length,
-        unassigned: projects.filter((p: any) => !p.supervisor_id).length,
-        overdue: ms.filter((m: any) => m.status !== "completed" && new Date(m.due_date) < new Date()).length,
-        pendingReviews: docs.filter((d: any) => d.review_status === "not_reviewed").length,
-      });
-    })();
-  }, []);
+    refresh();
+    if (!user) return;
+    const ch = supabase
+      .channel(`admin-unread-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` }, () => refresh())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   return (
     <>
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         {[
           { label: "Users", value: counts.users, icon: Users, to: "/app/admin" },
           { label: "Projects", value: counts.projects, icon: FolderOpen, to: "/app/projects" },
           { label: "Unassigned", value: counts.unassigned, icon: AlertTriangle, to: "/app/admin", alert: counts.unassigned > 0 },
           { label: "Overdue", value: counts.overdue, icon: AlertTriangle, to: "/app/milestones", alert: counts.overdue > 0 },
           { label: "Pending Reviews", value: counts.pendingReviews, icon: ClipboardCheck, to: "/app/admin" },
+          { label: "Unread Messages", value: counts.unread, icon: MessageSquare, to: "/app/messages", alert: counts.unread > 0, live: true },
         ].map((s, i) => (
           <motion.button
             key={s.label} custom={i} initial="hidden" animate="visible" variants={fadeUp}
             onClick={() => navigate(s.to)}
-            className={`rounded-lg border ${s.alert ? "border-destructive/50 bg-destructive/5" : "border-gold bg-card"} p-4 text-left hover:shadow-gold transition-all`}
+            className={`relative rounded-lg border ${s.alert ? "border-destructive/50 bg-destructive/5" : "border-gold bg-card"} p-4 text-left hover:shadow-gold transition-all`}
           >
+            {s.live && (
+              <span className="absolute top-2 right-2 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
+            )}
             <div className="flex items-center justify-between">
               <s.icon className={`h-4 w-4 ${s.alert ? "text-destructive" : "text-primary"}`} />
               <span className="text-xl font-bold text-foreground">{s.value}</span>
@@ -127,32 +148,40 @@ function SupervisorDash({ userId }: { userId: string }) {
   const navigate = useNavigate();
   const [counts, setCounts] = useState({ assigned: 0, pendingReviews: 0, pendingMilestones: 0, unread: 0 });
 
+  async function refresh() {
+    const projectsRes = await supabase.from("projects").select("id").eq("supervisor_id", userId);
+    const projectIds = (projectsRes.data || []).map((p: any) => p.id);
+
+    let pendingReviews = 0;
+    let pendingMilestones = 0;
+    if (projectIds.length) {
+      const [docsRes, msRes] = await Promise.all([
+        supabase.from("documents").select("review_status").in("project_id", projectIds),
+        supabase.from("milestones").select("approved, status").in("project_id", projectIds),
+      ]);
+      pendingReviews = (docsRes.data || []).filter((d: any) => d.review_status === "not_reviewed").length;
+      pendingMilestones = (msRes.data || []).filter((m: any) => !m.approved && m.status === "completed").length;
+    }
+    const unreadRes = await supabase
+      .from("messages").select("id", { count: "exact", head: true })
+      .eq("receiver_id", userId).eq("is_read", false);
+
+    setCounts({
+      assigned: projectIds.length,
+      pendingReviews,
+      pendingMilestones,
+      unread: unreadRes.count || 0,
+    });
+  }
+
   useEffect(() => {
-    (async () => {
-      const projectsRes = await supabase.from("projects").select("id").eq("supervisor_id", userId);
-      const projectIds = (projectsRes.data || []).map((p: any) => p.id);
-
-      let pendingReviews = 0;
-      let pendingMilestones = 0;
-      if (projectIds.length) {
-        const [docsRes, msRes] = await Promise.all([
-          supabase.from("documents").select("review_status").in("project_id", projectIds),
-          supabase.from("milestones").select("approved, status").in("project_id", projectIds),
-        ]);
-        pendingReviews = (docsRes.data || []).filter((d: any) => d.review_status === "not_reviewed").length;
-        pendingMilestones = (msRes.data || []).filter((m: any) => !m.approved && m.status === "completed").length;
-      }
-      const unreadRes = await supabase
-        .from("messages").select("id", { count: "exact", head: true })
-        .eq("receiver_id", userId).eq("is_read", false);
-
-      setCounts({
-        assigned: projectIds.length,
-        pendingReviews,
-        pendingMilestones,
-        unread: unreadRes.count || 0,
-      });
-    })();
+    refresh();
+    const ch = supabase
+      .channel(`supervisor-unread-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` }, () => refresh())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   return (
@@ -162,6 +191,13 @@ function SupervisorDash({ userId }: { userId: string }) {
         <div className="flex items-center gap-2 mb-3">
           <ClipboardCheck className="h-4 w-4 text-primary" />
           <h2 className="font-display text-base font-semibold">Review Queue</h2>
+          <span className="ml-auto flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-primary">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+            </span>
+            Live
+          </span>
         </div>
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <Stat icon={FolderOpen} label="Assigned Projects" value={counts.assigned} />
