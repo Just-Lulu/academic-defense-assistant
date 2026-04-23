@@ -70,6 +70,57 @@ export type Database = {
           },
         ]
       }
+      meetings: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          duration_minutes: number
+          id: string
+          location: string | null
+          meeting_link: string | null
+          project_id: string | null
+          scheduled_at: string
+          status: string
+          student_id: string
+          supervisor_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          location?: string | null
+          meeting_link?: string | null
+          project_id?: string | null
+          scheduled_at: string
+          status?: string
+          student_id: string
+          supervisor_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          location?: string | null
+          meeting_link?: string | null
+          project_id?: string | null
+          scheduled_at?: string
+          status?: string
+          student_id?: string
+          supervisor_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
