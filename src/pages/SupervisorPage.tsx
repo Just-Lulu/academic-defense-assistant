@@ -50,6 +50,10 @@ export default function SupervisorPage() {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openChapter, setOpenChapter] = useState<string | null>(null);
+  const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Milestones
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
