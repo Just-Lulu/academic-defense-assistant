@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Users, FolderOpen, FileText, Target, CheckCircle, Clock, AlertCircle, Download,
-  MessageSquare, Sparkles, ShieldCheck, Send, ArrowLeft,
+  MessageSquare, Sparkles, ShieldCheck, Send, ArrowLeft, History, ChevronDown, ChevronRight,
+  CheckCircle2, XCircle, Hourglass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+import DocumentComments from "@/components/DocumentComments";
 
 type Project = Tables<"projects">;
 type Document = Tables<"documents">;
@@ -48,6 +50,10 @@ export default function SupervisorPage() {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openChapter, setOpenChapter] = useState<string | null>(null);
+  const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Milestones
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
@@ -131,6 +137,29 @@ export default function SupervisorPage() {
       toast.success("Project status updated");
       fetchAssignedProjects();
       if (activeProject?.id === projectId) setActiveProject({ ...activeProject, status });
+    }
+  }
+
+  async function approveTopic(p: Project) {
+    const { error } = await supabase
+      .from("projects")
+      .update({ status: "in_progress", rejection_reason: null })
+      .eq("id", p.id);
+    if (error) toast.error(error.message);
+    else { toast.success(`Approved: ${p.title}`); fetchAssignedProjects(); }
+  }
+
+  async function rejectTopic(p: Project) {
+    if (!rejectReason.trim()) { toast.error("Add a brief reason for rejection"); return; }
+    const { error } = await supabase
+      .from("projects")
+      .update({ status: "rejected", rejection_reason: rejectReason.trim() })
+      .eq("id", p.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success(`Rejected: ${p.title}`);
+      setRejectingId(null); setRejectReason("");
+      fetchAssignedProjects();
     }
   }
 
@@ -258,6 +287,27 @@ export default function SupervisorPage() {
     if (error) toast.error(error.message);
   }
 
+  // Group submitted documents by chapter for version history
+  const docGroups = useMemo(() => {
+    const map = new Map<string, { chapter: string; versions: Document[] }>();
+    const loose: Document[] = [];
+    for (const d of documents) {
+      if (d.chapter) {
+        if (!map.has(d.chapter)) map.set(d.chapter, { chapter: d.chapter, versions: [] });
+        map.get(d.chapter)!.versions.push(d);
+      } else {
+        loose.push(d);
+      }
+    }
+    for (const g of map.values()) g.versions.sort((a, b) => (b.version ?? 1) - (a.version ?? 1));
+    return { groups: Array.from(map.values()), loose };
+  }, [documents]);
+
+  const pendingTopics = useMemo(
+    () => projects.filter((p) => p.status === "draft" || p.status === "under_review" || p.status === "pending_approval"),
+    [projects],
+  );
+
   if (role && role !== "supervisor" && role !== "admin") {
     return (
       <div className="rounded-lg border border-gold bg-card p-8 text-center">
@@ -266,6 +316,13 @@ export default function SupervisorPage() {
         <p className="text-sm text-muted-foreground mt-1">This page is only available to users with a supervisor role.</p>
       </div>
     );
+  }
+
+  // Author names lookup for comment threads (project's student + the supervisor)
+  const commentAuthorNames: Record<string, string> = {};
+  if (activeProject) {
+    commentAuthorNames[activeProject.student_id] = students[activeProject.student_id] || "Student";
+    if (user) commentAuthorNames[user.id] = "You (supervisor)";
   }
 
   // ============ Project detail view ============
@@ -377,90 +434,147 @@ export default function SupervisorPage() {
           </div>
         )}
 
-        {/* Documents */}
-        <div className="rounded-lg border border-gold bg-card p-6 space-y-3">
+        {/* Documents — version history grouped by chapter */}
+        <div className="rounded-lg border border-gold bg-card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg font-semibold text-foreground flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" /> Submitted Documents
+              <History className="h-5 w-5 text-primary" /> Document Version History
             </h2>
-            <span className="text-xs text-muted-foreground">{documents.length} total</span>
+            <span className="text-xs text-muted-foreground">
+              {docGroups.groups.length} chapter{docGroups.groups.length === 1 ? "" : "s"} · {documents.length} version{documents.length === 1 ? "" : "s"}
+            </span>
           </div>
+
           {documents.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No documents submitted yet.</p>
           ) : (
-            <div className="divide-y divide-border">
-              {documents.map((d) => {
-                const rs = reviewStatusCfg[d.review_status] || reviewStatusCfg.not_reviewed;
+            <div className="space-y-3">
+              {docGroups.groups.map((g) => {
+                const isOpen = openChapter === g.chapter;
+                const latest = g.versions[0];
+                const rs = reviewStatusCfg[latest.review_status] || reviewStatusCfg.not_reviewed;
                 return (
-                  <div key={d.id} className="py-3 space-y-2">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <FileText className="h-4 w-4 text-primary shrink-0" />
+                  <div key={g.chapter} className="rounded-md border border-border overflow-hidden">
+                    <button
+                      onClick={() => setOpenChapter(isOpen ? null : g.chapter)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-secondary/30 transition-colors text-left"
+                    >
+                      {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                      <FileText className="h-4 w-4 text-primary" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{d.title}</p>
+                        <p className="text-sm font-semibold text-foreground truncate">{g.chapter}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(d.created_at).toLocaleDateString()}
-                          {d.reviewed_at && <> · Reviewed {new Date(d.reviewed_at).toLocaleDateString()}</>}
+                          {g.versions.length} version{g.versions.length === 1 ? "" : "s"} · Latest {new Date(latest.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full border ${rs.cls}`}>{rs.label}</span>
-                      <select
-                        value={d.review_status}
-                        onChange={(e) => setDocReviewStatus(d, e.target.value)}
-                        className="text-xs rounded-md border border-gold bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        <option value="not_reviewed">Not reviewed</option>
-                        <option value="reviewed">Reviewed</option>
-                        <option value="needs_revision">Needs revision</option>
-                      </select>
-                      <Button size="sm" variant="ghost" onClick={() => downloadDoc(d)}>
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm" variant="outline"
-                        onClick={() => insightsDocId === d.id ? setInsightsDocId(null) : loadInsights(d)}
-                      >
-                        <Sparkles className="h-4 w-4 mr-1" />
-                        {insightsDocId === d.id ? "Hide insights" : "AI insights"}
-                      </Button>
-                    </div>
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary shrink-0">
+                        Latest v{latest.version}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border shrink-0 ${rs.cls}`}>{rs.label}</span>
+                    </button>
 
-                    {insightsDocId === d.id && (
-                      <div className="ml-7 rounded-md border border-primary/30 bg-primary/5 p-4 space-y-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                          <Sparkles className="h-4 w-4" /> AI Insights
-                        </div>
-                        {insightsLoading ? (
-                          <p className="text-xs text-muted-foreground">Analyzing document with AI…</p>
-                        ) : insights ? (
-                          <div className="space-y-3 text-sm">
-                            {insights.summary && (
-                              <p className="text-foreground">{insights.summary}</p>
-                            )}
-                            {insights.weaknesses?.length > 0 && (
-                              <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Weaknesses</p>
-                                <ul className="list-disc pl-5 space-y-1 text-foreground">
-                                  {insights.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
-                                </ul>
+                    {isOpen && (
+                      <div className="border-t border-border divide-y divide-border bg-background/40">
+                        {g.versions.map((d) => {
+                          const drs = reviewStatusCfg[d.review_status] || reviewStatusCfg.not_reviewed;
+                          const commentsOpen = openCommentsFor === d.id;
+                          const aiOpen = insightsDocId === d.id;
+                          return (
+                            <div key={d.id} className="p-4 space-y-3">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-xs font-mono px-2 py-1 rounded border border-gold bg-card text-foreground">v{d.version}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-foreground truncate">{d.file_name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {new Date(d.created_at).toLocaleString()}
+                                    {d.reviewed_at && <> · Reviewed {new Date(d.reviewed_at).toLocaleDateString()}</>}
+                                  </p>
+                                </div>
+                                <span className={`text-xs px-2 py-0.5 rounded-full border ${drs.cls}`}>{drs.label}</span>
+                                <select
+                                  value={d.review_status}
+                                  onChange={(e) => setDocReviewStatus(d, e.target.value)}
+                                  className="text-xs rounded-md border border-gold bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                  <option value="not_reviewed">Not reviewed</option>
+                                  <option value="reviewed">Reviewed</option>
+                                  <option value="needs_revision">Needs revision</option>
+                                </select>
+                                <Button size="sm" variant="ghost" onClick={() => downloadDoc(d)}>
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setOpenCommentsFor(commentsOpen ? null : d.id)}>
+                                  <MessageSquare className="h-4 w-4 mr-1" />
+                                  {commentsOpen ? "Hide feedback" : "Feedback"}
+                                </Button>
+                                <Button
+                                  size="sm" variant="outline"
+                                  onClick={() => aiOpen ? setInsightsDocId(null) : loadInsights(d)}
+                                >
+                                  <Sparkles className="h-4 w-4 mr-1" />
+                                  {aiOpen ? "Hide AI" : "AI insights"}
+                                </Button>
                               </div>
-                            )}
-                            {insights.defenseQuestions?.length > 0 && (
-                              <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Suggested Defense Questions</p>
-                                <ul className="list-decimal pl-5 space-y-1 text-foreground">
-                                  {insights.defenseQuestions.map((q, i) => <li key={i}>{q}</li>)}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No insights available.</p>
-                        )}
+
+                              {commentsOpen && (
+                                <DocumentComments documentId={d.id} authorNames={commentAuthorNames} />
+                              )}
+
+                              {aiOpen && (
+                                <div className="ml-7 rounded-md border border-primary/30 bg-primary/5 p-4 space-y-3">
+                                  <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                                    <Sparkles className="h-4 w-4" /> AI Insights
+                                  </div>
+                                  {insightsLoading ? (
+                                    <p className="text-xs text-muted-foreground">Analyzing document with AI…</p>
+                                  ) : insights ? (
+                                    <div className="space-y-3 text-sm">
+                                      {insights.summary && <p className="text-foreground">{insights.summary}</p>}
+                                      {insights.weaknesses?.length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Weaknesses</p>
+                                          <ul className="list-disc pl-5 space-y-1 text-foreground">
+                                            {insights.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                                          </ul>
+                                        </div>
+                                      )}
+                                      {insights.defenseQuestions?.length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Suggested Defense Questions</p>
+                                          <ul className="list-decimal pl-5 space-y-1 text-foreground">
+                                            {insights.defenseQuestions.map((q, i) => <li key={i}>{q}</li>)}
+                                          </ul>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">No insights available.</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 );
               })}
+
+              {docGroups.loose.length > 0 && (
+                <div className="rounded-md border border-border p-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Other documents (no chapter assigned)</p>
+                  {docGroups.loose.map((d) => (
+                    <div key={d.id} className="flex items-center gap-2 text-sm">
+                      <FileText className="h-4 w-4 text-primary shrink-0" />
+                      <span className="flex-1 truncate text-foreground">{d.title}</span>
+                      <Button size="sm" variant="ghost" onClick={() => downloadDoc(d)}>
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -556,6 +670,88 @@ export default function SupervisorPage() {
         <div className="divider-gold w-12 mt-2 mb-1" />
         <p className="text-sm text-muted-foreground">Review your assigned students, their documents, and project milestones.</p>
       </div>
+
+      {/* Topic Approval Queue */}
+      {pendingTopics.length > 0 && (
+        <div className="rounded-lg border border-gold bg-card p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-lg font-semibold text-foreground flex items-center gap-2">
+              <Hourglass className="h-5 w-5 text-primary" /> Pending Topic Approvals
+            </h2>
+            <span className="text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary">
+              {pendingTopics.length} awaiting review
+            </span>
+          </div>
+          <div className="space-y-3">
+            {pendingTopics.map((p) => {
+              const isRejecting = rejectingId === p.id;
+              const statusLabel =
+                p.status === "draft" ? "Draft" :
+                p.status === "under_review" ? "Under review" :
+                p.status === "pending_approval" ? "Pending approval" : p.status;
+              return (
+                <div key={p.id} className="rounded-md border border-border bg-background/40 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-foreground truncate">{p.title}</h3>
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-info/30 bg-info/10 text-info shrink-0">
+                          {statusLabel}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Submitted by <span className="text-foreground font-medium">{students[p.student_id] || "Unknown student"}</span>
+                        {p.department && <> · {p.department}</>}
+                        <> · {new Date(p.created_at).toLocaleDateString()}</>
+                      </p>
+                      {p.abstract && (
+                        <p className="text-sm text-foreground mt-2 line-clamp-3">{p.abstract}</p>
+                      )}
+                      {!p.abstract && p.description && (
+                        <p className="text-sm text-foreground mt-2 line-clamp-3">{p.description}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button size="sm" variant="hero" onClick={() => approveTopic(p)}>
+                        <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                      </Button>
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={() => { setRejectingId(isRejecting ? null : p.id); setRejectReason(""); }}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" /> Reject
+                      </Button>
+                    </div>
+                  </div>
+
+                  {isRejecting && (
+                    <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Reason for rejection
+                      </label>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        rows={2}
+                        placeholder="Explain why the topic is not approved (visible to the student)…"
+                        className="w-full rounded-md border border-gold bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => { setRejectingId(null); setRejectReason(""); }}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => rejectTopic(p)}>
+                          Confirm rejection
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground text-sm">Loading assigned projects...</div>
