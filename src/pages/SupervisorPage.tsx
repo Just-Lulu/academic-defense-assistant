@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Users, FolderOpen, FileText, Target, CheckCircle, Clock, AlertCircle, Download,
-  MessageSquare, Sparkles, ShieldCheck, Send, ArrowLeft,
+  MessageSquare, Sparkles, ShieldCheck, Send, ArrowLeft, History, ChevronDown, ChevronRight,
+  CheckCircle2, XCircle, Hourglass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+import DocumentComments from "@/components/DocumentComments";
 
 type Project = Tables<"projects">;
 type Document = Tables<"documents">;
