@@ -297,6 +297,27 @@ export default function SupervisorPage() {
     );
   }
 
+  // Group submitted documents by chapter for version history
+  const docGroups = useMemo(() => {
+    const map = new Map<string, { chapter: string; versions: Document[] }>();
+    const loose: Document[] = [];
+    for (const d of documents) {
+      if (d.chapter) {
+        if (!map.has(d.chapter)) map.set(d.chapter, { chapter: d.chapter, versions: [] });
+        map.get(d.chapter)!.versions.push(d);
+      } else {
+        loose.push(d);
+      }
+    }
+    for (const g of map.values()) g.versions.sort((a, b) => (b.version ?? 1) - (a.version ?? 1));
+    return { groups: Array.from(map.values()), loose };
+  }, [documents]);
+
+  const pendingTopics = useMemo(
+    () => projects.filter((p) => p.status === "draft" || p.status === "under_review" || p.status === "pending_approval"),
+    [projects],
+  );
+
   // ============ Project detail view ============
   if (activeProject) {
     const completedCount = milestones.filter((m) => m.status === "completed").length;
