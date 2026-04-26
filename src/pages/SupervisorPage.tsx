@@ -140,6 +140,29 @@ export default function SupervisorPage() {
     }
   }
 
+  async function approveTopic(p: Project) {
+    const { error } = await supabase
+      .from("projects")
+      .update({ status: "in_progress", rejection_reason: null })
+      .eq("id", p.id);
+    if (error) toast.error(error.message);
+    else { toast.success(`Approved: ${p.title}`); fetchAssignedProjects(); }
+  }
+
+  async function rejectTopic(p: Project) {
+    if (!rejectReason.trim()) { toast.error("Add a brief reason for rejection"); return; }
+    const { error } = await supabase
+      .from("projects")
+      .update({ status: "rejected", rejection_reason: rejectReason.trim() })
+      .eq("id", p.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success(`Rejected: ${p.title}`);
+      setRejectingId(null); setRejectReason("");
+      fetchAssignedProjects();
+    }
+  }
+
   async function updateProgress(projectId: string, progress: number) {
     const { error } = await supabase.from("projects").update({ progress }).eq("id", projectId);
     if (error) toast.error(error.message);
