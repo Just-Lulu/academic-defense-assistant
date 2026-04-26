@@ -14,14 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      document_comments: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          document_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          document_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_comments_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
+          chapter: string | null
           created_at: string
           file_name: string
           file_path: string
           file_size: number | null
           id: string
           mime_type: string | null
+          parent_document_id: string | null
           project_id: string | null
           review_status: string
           reviewed_at: string | null
@@ -29,14 +66,17 @@ export type Database = {
           title: string
           updated_at: string
           uploaded_by: string
+          version: number
         }
         Insert: {
+          chapter?: string | null
           created_at?: string
           file_name: string
           file_path: string
           file_size?: number | null
           id?: string
           mime_type?: string | null
+          parent_document_id?: string | null
           project_id?: string | null
           review_status?: string
           reviewed_at?: string | null
@@ -44,14 +84,17 @@ export type Database = {
           title: string
           updated_at?: string
           uploaded_by: string
+          version?: number
         }
         Update: {
+          chapter?: string | null
           created_at?: string
           file_name?: string
           file_path?: string
           file_size?: number | null
           id?: string
           mime_type?: string | null
+          parent_document_id?: string | null
           project_id?: string | null
           review_status?: string
           reviewed_at?: string | null
@@ -59,8 +102,16 @@ export type Database = {
           title?: string
           updated_at?: string
           uploaded_by?: string
+          version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "documents_parent_document_id_fkey"
+            columns: ["parent_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documents_project_id_fkey"
             columns: ["project_id"]
@@ -255,6 +306,7 @@ export type Database = {
           faculty: string | null
           id: string
           progress: number
+          rejection_reason: string | null
           start_date: string | null
           status: string
           student_id: string
@@ -271,6 +323,7 @@ export type Database = {
           faculty?: string | null
           id?: string
           progress?: number
+          rejection_reason?: string | null
           start_date?: string | null
           status?: string
           student_id: string
@@ -287,6 +340,7 @@ export type Database = {
           faculty?: string | null
           id?: string
           progress?: number
+          rejection_reason?: string | null
           start_date?: string | null
           status?: string
           student_id?: string
