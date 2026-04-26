@@ -434,90 +434,147 @@ export default function SupervisorPage() {
           </div>
         )}
 
-        {/* Documents */}
-        <div className="rounded-lg border border-gold bg-card p-6 space-y-3">
+        {/* Documents — version history grouped by chapter */}
+        <div className="rounded-lg border border-gold bg-card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg font-semibold text-foreground flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" /> Submitted Documents
+              <History className="h-5 w-5 text-primary" /> Document Version History
             </h2>
-            <span className="text-xs text-muted-foreground">{documents.length} total</span>
+            <span className="text-xs text-muted-foreground">
+              {docGroups.groups.length} chapter{docGroups.groups.length === 1 ? "" : "s"} · {documents.length} version{documents.length === 1 ? "" : "s"}
+            </span>
           </div>
+
           {documents.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">No documents submitted yet.</p>
           ) : (
-            <div className="divide-y divide-border">
-              {documents.map((d) => {
-                const rs = reviewStatusCfg[d.review_status] || reviewStatusCfg.not_reviewed;
+            <div className="space-y-3">
+              {docGroups.groups.map((g) => {
+                const isOpen = openChapter === g.chapter;
+                const latest = g.versions[0];
+                const rs = reviewStatusCfg[latest.review_status] || reviewStatusCfg.not_reviewed;
                 return (
-                  <div key={d.id} className="py-3 space-y-2">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <FileText className="h-4 w-4 text-primary shrink-0" />
+                  <div key={g.chapter} className="rounded-md border border-border overflow-hidden">
+                    <button
+                      onClick={() => setOpenChapter(isOpen ? null : g.chapter)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-secondary/30 transition-colors text-left"
+                    >
+                      {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                      <FileText className="h-4 w-4 text-primary" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{d.title}</p>
+                        <p className="text-sm font-semibold text-foreground truncate">{g.chapter}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(d.created_at).toLocaleDateString()}
-                          {d.reviewed_at && <> · Reviewed {new Date(d.reviewed_at).toLocaleDateString()}</>}
+                          {g.versions.length} version{g.versions.length === 1 ? "" : "s"} · Latest {new Date(latest.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full border ${rs.cls}`}>{rs.label}</span>
-                      <select
-                        value={d.review_status}
-                        onChange={(e) => setDocReviewStatus(d, e.target.value)}
-                        className="text-xs rounded-md border border-gold bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        <option value="not_reviewed">Not reviewed</option>
-                        <option value="reviewed">Reviewed</option>
-                        <option value="needs_revision">Needs revision</option>
-                      </select>
-                      <Button size="sm" variant="ghost" onClick={() => downloadDoc(d)}>
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm" variant="outline"
-                        onClick={() => insightsDocId === d.id ? setInsightsDocId(null) : loadInsights(d)}
-                      >
-                        <Sparkles className="h-4 w-4 mr-1" />
-                        {insightsDocId === d.id ? "Hide insights" : "AI insights"}
-                      </Button>
-                    </div>
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary shrink-0">
+                        Latest v{latest.version}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border shrink-0 ${rs.cls}`}>{rs.label}</span>
+                    </button>
 
-                    {insightsDocId === d.id && (
-                      <div className="ml-7 rounded-md border border-primary/30 bg-primary/5 p-4 space-y-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                          <Sparkles className="h-4 w-4" /> AI Insights
-                        </div>
-                        {insightsLoading ? (
-                          <p className="text-xs text-muted-foreground">Analyzing document with AI…</p>
-                        ) : insights ? (
-                          <div className="space-y-3 text-sm">
-                            {insights.summary && (
-                              <p className="text-foreground">{insights.summary}</p>
-                            )}
-                            {insights.weaknesses?.length > 0 && (
-                              <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Weaknesses</p>
-                                <ul className="list-disc pl-5 space-y-1 text-foreground">
-                                  {insights.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
-                                </ul>
+                    {isOpen && (
+                      <div className="border-t border-border divide-y divide-border bg-background/40">
+                        {g.versions.map((d) => {
+                          const drs = reviewStatusCfg[d.review_status] || reviewStatusCfg.not_reviewed;
+                          const commentsOpen = openCommentsFor === d.id;
+                          const aiOpen = insightsDocId === d.id;
+                          return (
+                            <div key={d.id} className="p-4 space-y-3">
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <span className="text-xs font-mono px-2 py-1 rounded border border-gold bg-card text-foreground">v{d.version}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-foreground truncate">{d.file_name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {new Date(d.created_at).toLocaleString()}
+                                    {d.reviewed_at && <> · Reviewed {new Date(d.reviewed_at).toLocaleDateString()}</>}
+                                  </p>
+                                </div>
+                                <span className={`text-xs px-2 py-0.5 rounded-full border ${drs.cls}`}>{drs.label}</span>
+                                <select
+                                  value={d.review_status}
+                                  onChange={(e) => setDocReviewStatus(d, e.target.value)}
+                                  className="text-xs rounded-md border border-gold bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                  <option value="not_reviewed">Not reviewed</option>
+                                  <option value="reviewed">Reviewed</option>
+                                  <option value="needs_revision">Needs revision</option>
+                                </select>
+                                <Button size="sm" variant="ghost" onClick={() => downloadDoc(d)}>
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setOpenCommentsFor(commentsOpen ? null : d.id)}>
+                                  <MessageSquare className="h-4 w-4 mr-1" />
+                                  {commentsOpen ? "Hide feedback" : "Feedback"}
+                                </Button>
+                                <Button
+                                  size="sm" variant="outline"
+                                  onClick={() => aiOpen ? setInsightsDocId(null) : loadInsights(d)}
+                                >
+                                  <Sparkles className="h-4 w-4 mr-1" />
+                                  {aiOpen ? "Hide AI" : "AI insights"}
+                                </Button>
                               </div>
-                            )}
-                            {insights.defenseQuestions?.length > 0 && (
-                              <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Suggested Defense Questions</p>
-                                <ul className="list-decimal pl-5 space-y-1 text-foreground">
-                                  {insights.defenseQuestions.map((q, i) => <li key={i}>{q}</li>)}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No insights available.</p>
-                        )}
+
+                              {commentsOpen && (
+                                <DocumentComments documentId={d.id} authorNames={commentAuthorNames} />
+                              )}
+
+                              {aiOpen && (
+                                <div className="ml-7 rounded-md border border-primary/30 bg-primary/5 p-4 space-y-3">
+                                  <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                                    <Sparkles className="h-4 w-4" /> AI Insights
+                                  </div>
+                                  {insightsLoading ? (
+                                    <p className="text-xs text-muted-foreground">Analyzing document with AI…</p>
+                                  ) : insights ? (
+                                    <div className="space-y-3 text-sm">
+                                      {insights.summary && <p className="text-foreground">{insights.summary}</p>}
+                                      {insights.weaknesses?.length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Weaknesses</p>
+                                          <ul className="list-disc pl-5 space-y-1 text-foreground">
+                                            {insights.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                                          </ul>
+                                        </div>
+                                      )}
+                                      {insights.defenseQuestions?.length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Suggested Defense Questions</p>
+                                          <ul className="list-decimal pl-5 space-y-1 text-foreground">
+                                            {insights.defenseQuestions.map((q, i) => <li key={i}>{q}</li>)}
+                                          </ul>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">No insights available.</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 );
               })}
+
+              {docGroups.loose.length > 0 && (
+                <div className="rounded-md border border-border p-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Other documents (no chapter assigned)</p>
+                  {docGroups.loose.map((d) => (
+                    <div key={d.id} className="flex items-center gap-2 text-sm">
+                      <FileText className="h-4 w-4 text-primary shrink-0" />
+                      <span className="flex-1 truncate text-foreground">{d.title}</span>
+                      <Button size="sm" variant="ghost" onClick={() => downloadDoc(d)}>
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
