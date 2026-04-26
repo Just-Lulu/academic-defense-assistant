@@ -671,6 +671,88 @@ export default function SupervisorPage() {
         <p className="text-sm text-muted-foreground">Review your assigned students, their documents, and project milestones.</p>
       </div>
 
+      {/* Topic Approval Queue */}
+      {pendingTopics.length > 0 && (
+        <div className="rounded-lg border border-gold bg-card p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-lg font-semibold text-foreground flex items-center gap-2">
+              <Hourglass className="h-5 w-5 text-primary" /> Pending Topic Approvals
+            </h2>
+            <span className="text-xs px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary">
+              {pendingTopics.length} awaiting review
+            </span>
+          </div>
+          <div className="space-y-3">
+            {pendingTopics.map((p) => {
+              const isRejecting = rejectingId === p.id;
+              const statusLabel =
+                p.status === "draft" ? "Draft" :
+                p.status === "under_review" ? "Under review" :
+                p.status === "pending_approval" ? "Pending approval" : p.status;
+              return (
+                <div key={p.id} className="rounded-md border border-border bg-background/40 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-foreground truncate">{p.title}</h3>
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-info/30 bg-info/10 text-info shrink-0">
+                          {statusLabel}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Submitted by <span className="text-foreground font-medium">{students[p.student_id] || "Unknown student"}</span>
+                        {p.department && <> · {p.department}</>}
+                        <> · {new Date(p.created_at).toLocaleDateString()}</>
+                      </p>
+                      {p.abstract && (
+                        <p className="text-sm text-foreground mt-2 line-clamp-3">{p.abstract}</p>
+                      )}
+                      {!p.abstract && p.description && (
+                        <p className="text-sm text-foreground mt-2 line-clamp-3">{p.description}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button size="sm" variant="hero" onClick={() => approveTopic(p)}>
+                        <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                      </Button>
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={() => { setRejectingId(isRejecting ? null : p.id); setRejectReason(""); }}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" /> Reject
+                      </Button>
+                    </div>
+                  </div>
+
+                  {isRejecting && (
+                    <div className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Reason for rejection
+                      </label>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        rows={2}
+                        placeholder="Explain why the topic is not approved (visible to the student)…"
+                        className="w-full rounded-md border border-gold bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => { setRejectingId(null); setRejectReason(""); }}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => rejectTopic(p)}>
+                          Confirm rejection
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-12 text-muted-foreground text-sm">Loading assigned projects...</div>
       ) : projects.length === 0 ? (
