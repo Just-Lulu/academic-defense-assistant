@@ -287,16 +287,6 @@ export default function SupervisorPage() {
     if (error) toast.error(error.message);
   }
 
-  if (role && role !== "supervisor" && role !== "admin") {
-    return (
-      <div className="rounded-lg border border-gold bg-card p-8 text-center">
-        <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-        <h2 className="font-display text-lg font-semibold text-foreground">Supervisor area</h2>
-        <p className="text-sm text-muted-foreground mt-1">This page is only available to users with a supervisor role.</p>
-      </div>
-    );
-  }
-
   // Group submitted documents by chapter for version history
   const docGroups = useMemo(() => {
     const map = new Map<string, { chapter: string; versions: Document[] }>();
@@ -317,6 +307,23 @@ export default function SupervisorPage() {
     () => projects.filter((p) => p.status === "draft" || p.status === "under_review" || p.status === "pending_approval"),
     [projects],
   );
+
+  if (role && role !== "supervisor" && role !== "admin") {
+    return (
+      <div className="rounded-lg border border-gold bg-card p-8 text-center">
+        <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+        <h2 className="font-display text-lg font-semibold text-foreground">Supervisor area</h2>
+        <p className="text-sm text-muted-foreground mt-1">This page is only available to users with a supervisor role.</p>
+      </div>
+    );
+  }
+
+  // Author names lookup for comment threads (project's student + the supervisor)
+  const commentAuthorNames: Record<string, string> = {};
+  if (activeProject) {
+    commentAuthorNames[activeProject.student_id] = students[activeProject.student_id] || "Student";
+    if (user) commentAuthorNames[user.id] = "You (supervisor)";
+  }
 
   // ============ Project detail view ============
   if (activeProject) {
