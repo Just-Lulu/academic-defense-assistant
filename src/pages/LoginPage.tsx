@@ -33,16 +33,11 @@ export default function LoginPage() {
           email,
           password,
           options: {
-            data: { full_name: fullName },
+            data: { full_name: fullName, role },
             emailRedirectTo: window.location.origin,
           },
         });
         if (error) throw error;
-
-        // Insert role
-        if (data.user) {
-          await supabase.from("user_roles").insert({ user_id: data.user.id, role });
-        }
 
         toast.success("Account created! Check your email to confirm, or sign in if auto-confirm is enabled.");
         // If auto-confirmed, navigate
