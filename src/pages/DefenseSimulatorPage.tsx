@@ -97,9 +97,6 @@ export default function DefenseSimulatorPage() {
     setQuestions(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-
       const response = await supabase.functions.invoke("defense-simulator", {
         body: {
           documentId: selectedDocId || documents[0]?.id,
