@@ -11,7 +11,6 @@ import {
   Shield,
   Settings,
   LogOut,
-  Images,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -37,7 +36,6 @@ const coreItems = [
   { title: "Milestones", url: "/app/milestones", icon: Target },
   { title: "Schedule", url: "/app/schedule", icon: Calendar },
   { title: "Messages", url: "/app/messages", icon: MessageSquare },
-  { title: "Showcase", url: "/app/showcase", icon: Images },
 ];
 
 const aiItems = [
