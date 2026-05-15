@@ -181,7 +181,6 @@ ${documentContent ? `\n--- Document content excerpt ---\n${documentContent.subst
           },
         ],
         tool_choice: { type: "function", function: { name: "submit_defense_questions" } },
-        reasoning: { effort: "medium" },
       }),
     });
 
