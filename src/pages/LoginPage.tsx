@@ -181,6 +181,29 @@ export default function LoginPage() {
             Continue with Google
           </Button>
 
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="mt-3 w-full"
+            disabled={loading}
+            onClick={async () => {
+              try {
+                const result = await lovable.auth.signInWithOAuth("apple", {
+                  redirect_uri: window.location.origin + "/app",
+                });
+                if (result.error) throw new Error(result.error.message || "Apple sign-in failed");
+              } catch (err: any) {
+                toast.error(err.message || "Apple sign-in failed");
+              }
+            }}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M16.365 1.43c0 1.14-.42 2.22-1.13 3-.76.84-2 .15-2.08-.06-.06-1.1.46-2.18 1.16-2.93C15.13.62 16.36.13 16.36.13s.01.81.01 1.3zM20.5 17.36c-.36.83-.53 1.2-1 1.94-.65 1.04-1.57 2.34-2.71 2.35-1.01.01-1.27-.66-2.64-.65-1.37.01-1.66.66-2.67.65-1.14-.01-2.01-1.18-2.66-2.22-1.81-2.91-2-6.32-.88-8.13.79-1.29 2.04-2.04 3.21-2.04 1.2 0 1.95.66 2.94.66.96 0 1.55-.66 2.94-.66 1.05 0 2.16.57 2.95 1.56-2.59 1.42-2.17 5.12.52 6.54z"/>
+            </svg>
+            Continue with Apple
+          </Button>
+
           <p className="mt-6 text-center text-sm text-muted-foreground">
             {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
             <button onClick={() => setIsSignUp(!isSignUp)} className="font-medium text-primary hover:underline">
