@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"student" | "supervisor">("student");
   const [loading, setLoading] = useState(false);
