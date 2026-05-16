@@ -45,7 +45,7 @@ const App = () => (
               <Route path="chatbot" element={<ChatbotPage />} />
               <Route path="supervisor" element={<SupervisorPage />} />
               <Route path="admin" element={<AdminPage />} />
-              <Route path="showcase" element={<ShowcasePage />} />
+              
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
