@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
+import { LogIn, UserPlus, Eye, EyeOff, Check, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
