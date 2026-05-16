@@ -13,6 +13,29 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showPwHints, setShowPwHints] = useState(false);
+
+  const pwChecks = {
+    length: password.length >= 8,
+    upper: /[A-Z]/.test(password),
+    lower: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    symbol: /[^A-Za-z0-9]/.test(password),
+  };
+
+  const generateStrongPassword = () => {
+    const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const lower = "abcdefghijkmnopqrstuvwxyz";
+    const nums = "23456789";
+    const syms = "!@#$%^&*?";
+    const all = upper + lower + nums + syms;
+    const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
+    let pw = [pick(upper), pick(lower), pick(nums), pick(syms)];
+    for (let i = 0; i < 12; i++) pw.push(pick(all));
+    pw = pw.sort(() => Math.random() - 0.5);
+    setPassword(pw.join(""));
+    setShowPassword(true);
+  };
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<"student" | "supervisor">("student");
   const [loading, setLoading] = useState(false);
