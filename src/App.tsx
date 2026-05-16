@@ -20,7 +20,7 @@ import SupervisorPage from "./pages/SupervisorPage";
 import AdminPage from "./pages/AdminPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
-import ShowcasePage from "./pages/ShowcasePage";
+
 
 const queryClient = new QueryClient();
 
