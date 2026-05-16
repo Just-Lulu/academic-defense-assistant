@@ -146,6 +146,8 @@ export default function LoginPage() {
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => isSignUp && setShowPwHints(true)}
+                  onBlur={() => setTimeout(() => setShowPwHints(false), 150)}
                   className="w-full rounded-md border border-gold bg-background px-3 py-2.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   placeholder="••••••••"
                 />
@@ -158,6 +160,33 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {isSignUp && showPwHints && (
+                <div className="mt-2 rounded-md border border-border bg-card/50 p-3 text-xs space-y-2">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={generateStrongPassword}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-sm bg-primary/10 px-2 py-1.5 font-medium text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Suggest strong password
+                  </button>
+                  <p className="text-muted-foreground uppercase tracking-wider text-[10px]">Requirements</p>
+                  <ul className="space-y-1">
+                    {[
+                      { ok: pwChecks.length, label: "At least 8 characters" },
+                      { ok: pwChecks.upper, label: "An uppercase letter (A-Z)" },
+                      { ok: pwChecks.lower, label: "A lowercase letter (a-z)" },
+                      { ok: pwChecks.number, label: "A number (0-9)" },
+                      { ok: pwChecks.symbol, label: "A symbol (!@#$...)" },
+                    ].map((c) => (
+                      <li key={c.label} className={`flex items-center gap-2 ${c.ok ? "text-primary" : "text-muted-foreground"}`}>
+                        {c.ok ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                        {c.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             {isSignUp && (
               <div>
