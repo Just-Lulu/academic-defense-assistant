@@ -226,8 +226,8 @@ ${health.map(h => `<tr><td>${h.signal}</td><td>${h.value}</td><td class="${h.sta
     toast.success("Audit report downloaded");
   }
 
-  const supervisors = useMemo(() => users.filter((u) => u.role === "supervisor"), [users]);
-  const students = useMemo(() => users.filter((u) => u.role === "student"), [users]);
+  const supervisors = useMemo(() => users.filter((u) => u.roles.includes("supervisor")), [users]);
+  const students = useMemo(() => users.filter((u) => u.roles.includes("student") && !u.roles.includes("supervisor") && !u.roles.includes("admin")), [users]);
   const filteredUsers = useMemo(() => {
     if (!search) return users;
     const s = search.toLowerCase();
