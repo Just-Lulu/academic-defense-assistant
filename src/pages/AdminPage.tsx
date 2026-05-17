@@ -43,6 +43,13 @@ export default function AdminPage() {
     if (role === "admin") fetchAll();
   }, [role]);
 
+  // Create-supervisor form state
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newIsAdmin, setNewIsAdmin] = useState(false);
+  const [creating, setCreating] = useState(false);
+
   async function fetchAll() {
     setLoading(true);
     const [profilesRes, rolesRes, projectsRes, documentsRes, milestonesRes] = await Promise.all([
@@ -53,15 +60,19 @@ export default function AdminPage() {
       supabase.from("milestones").select("*").order("due_date", { ascending: true }),
     ]);
 
-    const roleMap = new Map<string, Role>();
-    (rolesRes.data || []).forEach((r: any) => roleMap.set(r.user_id, r.role));
+    const roleMap = new Map<string, Role[]>();
+    (rolesRes.data || []).forEach((r: any) => {
+      const list = roleMap.get(r.user_id) || [];
+      list.push(r.role);
+      roleMap.set(r.user_id, list);
+    });
 
     const merged: UserWithRole[] = (profilesRes.data || []).map((p: Profile) => ({
       user_id: p.user_id,
       full_name: p.full_name,
       department: p.department,
       faculty: p.faculty,
-      role: roleMap.get(p.user_id) ?? null,
+      roles: roleMap.get(p.user_id) ?? [],
     }));
 
     setUsers(merged);
@@ -71,19 +82,43 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  async function changeRole(userId: string, newRole: Role) {
-    // Upsert: delete existing, insert new (single role per user model)
-    const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
-    if (delErr) {
-      toast.error(delErr.message);
+  async function setRoles(userId: string, roles: Role[]) {
+    const { data, error } = await supabase.functions.invoke("admin-manage-users", {
+      body: { action: "set_roles", user_id: userId, roles },
+    });
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || "Failed to update roles");
       return;
     }
-    const { error: insErr } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole });
-    if (insErr) toast.error(insErr.message);
-    else {
-      toast.success("Role updated");
-      fetchAll();
+    toast.success("Roles updated");
+    fetchAll();
+  }
+
+  function toggleRole(u: UserWithRole, role: Role, checked: boolean) {
+    const next = new Set(u.roles);
+    if (checked) next.add(role);
+    else next.delete(role);
+    setRoles(u.user_id, Array.from(next));
+  }
+
+  async function createSupervisor() {
+    if (!newEmail || newPassword.length < 8) {
+      toast.error("Email and password (min 8 chars) required");
+      return;
     }
+    setCreating(true);
+    const roles: Role[] = newIsAdmin ? ["supervisor", "admin"] : ["supervisor"];
+    const { data, error } = await supabase.functions.invoke("admin-manage-users", {
+      body: { action: "create_user", email: newEmail, password: newPassword, full_name: newName, roles },
+    });
+    setCreating(false);
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || "Failed to create account");
+      return;
+    }
+    toast.success(`Supervisor account created: ${newEmail}`);
+    setNewEmail(""); setNewPassword(""); setNewName(""); setNewIsAdmin(false);
+    fetchAll();
   }
 
   async function assignSupervisor(projectId: string, supervisorId: string | null) {
