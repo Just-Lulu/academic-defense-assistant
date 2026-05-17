@@ -324,7 +324,44 @@ ${health.map(h => `<tr><td>${h.signal}</td><td>${h.value}</td><td class="${h.sta
           </TabsList>
 
           {/* USERS & ROLES */}
-          <TabsContent value="users" className="space-y-3">
+          <TabsContent value="users" className="space-y-4">
+            {/* Create supervisor account */}
+            <div className="rounded-lg border border-gold bg-card p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold text-foreground text-sm">Create Supervisor Account</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Provision a new supervisor directly. Email is auto-confirmed; share the password securely.
+              </p>
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">Full name</Label>
+                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Dr. Jane Doe" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Email</Label>
+                  <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="jane@orpts.app" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Password</Label>
+                  <Input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="min 8 chars" />
+                </div>
+                <div className="flex items-end gap-3">
+                  <label className="flex items-center gap-2 text-xs text-foreground">
+                    <Checkbox checked={newIsAdmin} onCheckedChange={(v) => setNewIsAdmin(!!v)} />
+                    Also grant Admin
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button variant="hero" onClick={createSupervisor} disabled={creating}>
+                  {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+                  Create account
+                </Button>
+              </div>
+            </div>
+
             <Input
               placeholder="Search by name, department, faculty…"
               value={search}
@@ -338,8 +375,8 @@ ${health.map(h => `<tr><td>${h.signal}</td><td>${h.value}</td><td class="${h.sta
                     <th className="text-left px-4 py-3">Name</th>
                     <th className="text-left px-4 py-3">Department</th>
                     <th className="text-left px-4 py-3">Faculty</th>
-                    <th className="text-left px-4 py-3">Role</th>
-                    <th className="text-left px-4 py-3">Change Role</th>
+                    <th className="text-left px-4 py-3">Current Roles</th>
+                    <th className="text-left px-4 py-3">Manage Roles</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -349,21 +386,37 @@ ${health.map(h => `<tr><td>${h.signal}</td><td>${h.value}</td><td class="${h.sta
                       <td className="px-4 py-3 text-muted-foreground">{u.department || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{u.faculty || "—"}</td>
                       <td className="px-4 py-3">
-                        {u.role ? (
-                          <Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">none</span>
-                        )}
+                        <div className="flex gap-1 flex-wrap">
+                          {u.roles.length === 0 && <span className="text-xs text-muted-foreground italic">none</span>}
+                          {u.roles.includes("admin") && <Badge>admin</Badge>}
+                          {u.roles.includes("supervisor") && <Badge variant="secondary">supervisor</Badge>}
+                          {u.roles.includes("student") && <Badge variant="outline">student</Badge>}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
-                        <Select value={u.role || ""} onValueChange={(v) => changeRole(u.user_id, v as Role)}>
-                          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Set role" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="student">Student</SelectItem>
-                            <SelectItem value="supervisor">Supervisor</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex gap-4 text-xs">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <Checkbox
+                              checked={u.roles.includes("supervisor")}
+                              onCheckedChange={(v) => toggleRole(u, "supervisor", !!v)}
+                            />
+                            Supervisor
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <Checkbox
+                              checked={u.roles.includes("admin")}
+                              onCheckedChange={(v) => toggleRole(u, "admin", !!v)}
+                            />
+                            Admin
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <Checkbox
+                              checked={u.roles.includes("student")}
+                              onCheckedChange={(v) => toggleRole(u, "student", !!v)}
+                            />
+                            Student
+                          </label>
+                        </div>
                       </td>
                     </tr>
                   ))}
