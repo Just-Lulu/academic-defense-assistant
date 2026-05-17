@@ -27,7 +27,7 @@ interface UserWithRole {
   full_name: string | null;
   department: string | null;
   faculty: string | null;
-  role: Role | null;
+  roles: Role[];
 }
 
 export default function AdminPage() {
