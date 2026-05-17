@@ -64,12 +64,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function fetchRole(userId: string) {
+    // A user may hold multiple roles (e.g. supervisor + admin). Pick the highest.
     const { data } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", userId)
-      .single();
-    if (data) setRole(data.role);
+      .eq("user_id", userId);
+    if (data && data.length) {
+      const roles = data.map((r) => r.role);
+      const best = roles.includes("admin")
+        ? "admin"
+        : roles.includes("supervisor")
+          ? "supervisor"
+          : "student";
+      setRole(best as AuthContextType["role"]);
+    }
   }
 
   const signOut = async () => {

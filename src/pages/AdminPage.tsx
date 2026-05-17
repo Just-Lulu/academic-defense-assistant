@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Shield, Users, FolderOpen, FileText, Target, MessageSquare,
-  UserCog, Link2, AlertTriangle, TrendingUp, Loader2, Download,
+  UserCog, Link2, AlertTriangle, TrendingUp, Loader2, Download, UserPlus,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -25,7 +27,7 @@ interface UserWithRole {
   full_name: string | null;
   department: string | null;
   faculty: string | null;
-  role: Role | null;
+  roles: Role[];
 }
 
 export default function AdminPage() {
@@ -41,6 +43,13 @@ export default function AdminPage() {
     if (role === "admin") fetchAll();
   }, [role]);
 
+  // Create-supervisor form state
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newIsAdmin, setNewIsAdmin] = useState(false);
+  const [creating, setCreating] = useState(false);
+
   async function fetchAll() {
     setLoading(true);
     const [profilesRes, rolesRes, projectsRes, documentsRes, milestonesRes] = await Promise.all([
@@ -51,15 +60,19 @@ export default function AdminPage() {
       supabase.from("milestones").select("*").order("due_date", { ascending: true }),
     ]);
 
-    const roleMap = new Map<string, Role>();
-    (rolesRes.data || []).forEach((r: any) => roleMap.set(r.user_id, r.role));
+    const roleMap = new Map<string, Role[]>();
+    (rolesRes.data || []).forEach((r: any) => {
+      const list = roleMap.get(r.user_id) || [];
+      list.push(r.role);
+      roleMap.set(r.user_id, list);
+    });
 
     const merged: UserWithRole[] = (profilesRes.data || []).map((p: Profile) => ({
       user_id: p.user_id,
       full_name: p.full_name,
       department: p.department,
       faculty: p.faculty,
-      role: roleMap.get(p.user_id) ?? null,
+      roles: roleMap.get(p.user_id) ?? [],
     }));
 
     setUsers(merged);
@@ -69,19 +82,43 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  async function changeRole(userId: string, newRole: Role) {
-    // Upsert: delete existing, insert new (single role per user model)
-    const { error: delErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
-    if (delErr) {
-      toast.error(delErr.message);
+  async function setRoles(userId: string, roles: Role[]) {
+    const { data, error } = await supabase.functions.invoke("admin-manage-users", {
+      body: { action: "set_roles", user_id: userId, roles },
+    });
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || "Failed to update roles");
       return;
     }
-    const { error: insErr } = await supabase.from("user_roles").insert({ user_id: userId, role: newRole });
-    if (insErr) toast.error(insErr.message);
-    else {
-      toast.success("Role updated");
-      fetchAll();
+    toast.success("Roles updated");
+    fetchAll();
+  }
+
+  function toggleRole(u: UserWithRole, role: Role, checked: boolean) {
+    const next = new Set(u.roles);
+    if (checked) next.add(role);
+    else next.delete(role);
+    setRoles(u.user_id, Array.from(next));
+  }
+
+  async function createSupervisor() {
+    if (!newEmail || newPassword.length < 8) {
+      toast.error("Email and password (min 8 chars) required");
+      return;
     }
+    setCreating(true);
+    const roles: Role[] = newIsAdmin ? ["supervisor", "admin"] : ["supervisor"];
+    const { data, error } = await supabase.functions.invoke("admin-manage-users", {
+      body: { action: "create_user", email: newEmail, password: newPassword, full_name: newName, roles },
+    });
+    setCreating(false);
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || "Failed to create account");
+      return;
+    }
+    toast.success(`Supervisor account created: ${newEmail}`);
+    setNewEmail(""); setNewPassword(""); setNewName(""); setNewIsAdmin(false);
+    fetchAll();
   }
 
   async function assignSupervisor(projectId: string, supervisorId: string | null) {
@@ -189,8 +226,8 @@ ${health.map(h => `<tr><td>${h.signal}</td><td>${h.value}</td><td class="${h.sta
     toast.success("Audit report downloaded");
   }
 
-  const supervisors = useMemo(() => users.filter((u) => u.role === "supervisor"), [users]);
-  const students = useMemo(() => users.filter((u) => u.role === "student"), [users]);
+  const supervisors = useMemo(() => users.filter((u) => u.roles.includes("supervisor")), [users]);
+  const students = useMemo(() => users.filter((u) => u.roles.includes("student") && !u.roles.includes("supervisor") && !u.roles.includes("admin")), [users]);
   const filteredUsers = useMemo(() => {
     if (!search) return users;
     const s = search.toLowerCase();
@@ -287,7 +324,44 @@ ${health.map(h => `<tr><td>${h.signal}</td><td>${h.value}</td><td class="${h.sta
           </TabsList>
 
           {/* USERS & ROLES */}
-          <TabsContent value="users" className="space-y-3">
+          <TabsContent value="users" className="space-y-4">
+            {/* Create supervisor account */}
+            <div className="rounded-lg border border-gold bg-card p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold text-foreground text-sm">Create Supervisor Account</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Provision a new supervisor directly. Email is auto-confirmed; share the password securely.
+              </p>
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">Full name</Label>
+                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Dr. Jane Doe" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Email</Label>
+                  <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="jane@orpts.app" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Password</Label>
+                  <Input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="min 8 chars" />
+                </div>
+                <div className="flex items-end gap-3">
+                  <label className="flex items-center gap-2 text-xs text-foreground">
+                    <Checkbox checked={newIsAdmin} onCheckedChange={(v) => setNewIsAdmin(!!v)} />
+                    Also grant Admin
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button variant="hero" onClick={createSupervisor} disabled={creating}>
+                  {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+                  Create account
+                </Button>
+              </div>
+            </div>
+
             <Input
               placeholder="Search by name, department, faculty…"
               value={search}
@@ -301,8 +375,8 @@ ${health.map(h => `<tr><td>${h.signal}</td><td>${h.value}</td><td class="${h.sta
                     <th className="text-left px-4 py-3">Name</th>
                     <th className="text-left px-4 py-3">Department</th>
                     <th className="text-left px-4 py-3">Faculty</th>
-                    <th className="text-left px-4 py-3">Role</th>
-                    <th className="text-left px-4 py-3">Change Role</th>
+                    <th className="text-left px-4 py-3">Current Roles</th>
+                    <th className="text-left px-4 py-3">Manage Roles</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -312,21 +386,37 @@ ${health.map(h => `<tr><td>${h.signal}</td><td>${h.value}</td><td class="${h.sta
                       <td className="px-4 py-3 text-muted-foreground">{u.department || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{u.faculty || "—"}</td>
                       <td className="px-4 py-3">
-                        {u.role ? (
-                          <Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">none</span>
-                        )}
+                        <div className="flex gap-1 flex-wrap">
+                          {u.roles.length === 0 && <span className="text-xs text-muted-foreground italic">none</span>}
+                          {u.roles.includes("admin") && <Badge>admin</Badge>}
+                          {u.roles.includes("supervisor") && <Badge variant="secondary">supervisor</Badge>}
+                          {u.roles.includes("student") && <Badge variant="outline">student</Badge>}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
-                        <Select value={u.role || ""} onValueChange={(v) => changeRole(u.user_id, v as Role)}>
-                          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Set role" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="student">Student</SelectItem>
-                            <SelectItem value="supervisor">Supervisor</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex gap-4 text-xs">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <Checkbox
+                              checked={u.roles.includes("supervisor")}
+                              onCheckedChange={(v) => toggleRole(u, "supervisor", !!v)}
+                            />
+                            Supervisor
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <Checkbox
+                              checked={u.roles.includes("admin")}
+                              onCheckedChange={(v) => toggleRole(u, "admin", !!v)}
+                            />
+                            Admin
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <Checkbox
+                              checked={u.roles.includes("student")}
+                              onCheckedChange={(v) => toggleRole(u, "student", !!v)}
+                            />
+                            Student
+                          </label>
+                        </div>
                       </td>
                     </tr>
                   ))}
