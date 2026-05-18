@@ -14,48 +14,47 @@ Deno.serve(async (req) => {
   );
 
   const results: any[] = [];
+  const { data: list } = await admin.auth.admin.listUsers();
 
-  // 1) Reset Aisha Bello's password
+  // Aisha
   const aishaEmail = "student.demo@orpts.test";
   const aishaPassword = "Stud3nt!Aisha2026";
-  const { data: list } = await admin.auth.admin.listUsers();
   const aisha = list?.users.find((u) => u.email === aishaEmail);
   if (aisha) {
-    const { error } = await admin.auth.admin.updateUserById(aisha.id, {
-      password: aishaPassword,
-      email_confirm: true,
-    });
-    results.push({ email: aishaEmail, action: error ? "reset_failed" : "password_reset", password: aishaPassword, error: error?.message });
-  } else {
-    results.push({ email: aishaEmail, error: "not_found" });
+    const { error } = await admin.auth.admin.updateUserById(aisha.id, { password: aishaPassword, email_confirm: true });
+    results.push({ email: aishaEmail, password: aishaPassword, error: error?.message });
   }
 
-  // 2) Create Talia Okafor (student)
+  // Talia
   const taliaEmail = "student.talia@orpts.app";
   const taliaPassword = "Stud3nt!Talia2026";
-  const existingTalia = list?.users.find((u) => u.email === taliaEmail);
-  let taliaId = existingTalia?.id;
-  if (existingTalia) {
-    const { error } = await admin.auth.admin.updateUserById(existingTalia.id, {
-      password: taliaPassword, email_confirm: true,
-    });
-    results.push({ email: taliaEmail, action: "password_reset", password: taliaPassword, error: error?.message });
+  const talia = list?.users.find((u) => u.email === taliaEmail);
+  let taliaId = talia?.id;
+  if (talia) {
+    const { error } = await admin.auth.admin.updateUserById(talia.id, { password: taliaPassword, email_confirm: true });
+    results.push({ email: taliaEmail, password: taliaPassword, error: error?.message });
   } else {
     const { data, error } = await admin.auth.admin.createUser({
-      email: taliaEmail,
-      password: taliaPassword,
-      email_confirm: true,
+      email: taliaEmail, password: taliaPassword, email_confirm: true,
       user_metadata: { full_name: "Talia Okafor", role: "student" },
     });
-    if (error) { results.push({ email: taliaEmail, error: error.message }); }
-    else {
-      taliaId = data.user!.id;
-      results.push({ email: taliaEmail, action: "created", password: taliaPassword, user_id: taliaId });
-    }
+    if (!error) taliaId = data.user!.id;
+    results.push({ email: taliaEmail, password: taliaPassword, error: error?.message });
   }
   if (taliaId) {
     await admin.from("user_roles").delete().eq("user_id", taliaId);
     await admin.from("user_roles").insert({ user_id: taliaId, role: "student" });
+  }
+
+  // Chakara — reset by user_id
+  const chakaraId = "6221d1ab-c4ba-4458-b635-d0ab4c8e0660";
+  const chakaraPassword = "Stud3nt!Chakara2026";
+  const chakara = list?.users.find((u) => u.id === chakaraId);
+  if (chakara) {
+    const { error } = await admin.auth.admin.updateUserById(chakaraId, { password: chakaraPassword, email_confirm: true });
+    results.push({ email: chakara.email, password: chakaraPassword, error: error?.message });
+  } else {
+    results.push({ user_id: chakaraId, error: "not_found" });
   }
 
   return new Response(JSON.stringify({ results }, null, 2), {

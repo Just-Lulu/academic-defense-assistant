@@ -12,6 +12,7 @@ type Project = Tables<"projects">;
 
 const reviewStatusCfg: Record<string, { label: string; cls: string }> = {
   not_reviewed: { label: "Not reviewed", cls: "border-muted-foreground/30 bg-muted/40 text-muted-foreground" },
+  under_review: { label: "Under review", cls: "border-primary/30 bg-primary/10 text-primary" },
   reviewed: { label: "Reviewed", cls: "border-success/30 bg-success/10 text-success" },
   needs_revision: { label: "Needs revision", cls: "border-destructive/30 bg-destructive/10 text-destructive" },
 };
