@@ -86,8 +86,9 @@ export default function ProjectsPage() {
 
   const getSupervisorName = (supervisorId: string | null) => {
     if (!supervisorId) return null;
-    const s = supervisors.find((sv) => sv.user_id === supervisorId);
-    return s?.full_name || "Unknown";
+    return supervisorNames[supervisorId]
+      || supervisors.find((sv) => sv.user_id === supervisorId)?.full_name
+      || "Supervisor";
   };
 
   const statusLabel = (s: string) => {
