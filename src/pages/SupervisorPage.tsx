@@ -38,6 +38,7 @@ const milestoneStatusCfg = {
 
 const reviewStatusCfg: Record<string, { label: string; cls: string }> = {
   not_reviewed: { label: "Not reviewed", cls: "border-muted-foreground/30 bg-muted/40 text-muted-foreground" },
+  under_review: { label: "Under review", cls: "border-primary/30 bg-primary/10 text-primary" },
   reviewed: { label: "Reviewed", cls: "border-success/30 bg-success/10 text-success" },
   needs_revision: { label: "Needs revision", cls: "border-destructive/30 bg-destructive/10 text-destructive" },
 };
@@ -497,6 +498,7 @@ export default function SupervisorPage() {
                                   className="text-xs rounded-md border border-gold bg-background px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
                                 >
                                   <option value="not_reviewed">Not reviewed</option>
+                                  <option value="under_review">Under review</option>
                                   <option value="reviewed">Reviewed</option>
                                   <option value="needs_revision">Needs revision</option>
                                 </select>
