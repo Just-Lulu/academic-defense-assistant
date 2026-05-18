@@ -27,6 +27,7 @@ export default function ProjectsPage() {
 
   // Supervisor assignment
   const [supervisors, setSupervisors] = useState<SupervisorProfile[]>([]);
+  const [supervisorNames, setSupervisorNames] = useState<Record<string, string>>({});
   const [assigningProject, setAssigningProject] = useState<string | null>(null);
   const [selectedSupervisor, setSelectedSupervisor] = useState("");
 
@@ -34,6 +35,18 @@ export default function ProjectsPage() {
     fetchProjects();
     fetchSupervisors();
   }, []);
+
+  // Resolve supervisor names directly from profiles (works for students,
+  // who cannot read other users' rows in user_roles due to RLS).
+  useEffect(() => {
+    const ids = Array.from(new Set(projects.map((p) => p.supervisor_id).filter(Boolean))) as string[];
+    if (!ids.length) { setSupervisorNames({}); return; }
+    supabase.from("profiles").select("user_id, full_name").in("user_id", ids).then(({ data }) => {
+      const map: Record<string, string> = {};
+      data?.forEach((p) => { map[p.user_id] = p.full_name || "Supervisor"; });
+      setSupervisorNames(map);
+    });
+  }, [projects]);
 
   async function fetchProjects() {
     setLoading(true);
