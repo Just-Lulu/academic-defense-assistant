@@ -98,10 +98,12 @@ export default function LandingPage() {
               className="font-display text-5xl font-bold leading-tight tracking-tight text-foreground sm:text-6xl md:text-7xl"
             >
               <span className="text-gradient-gold">ORPTS</span>
+              <span className="sr-only"> — Online Research Project Tracking System</span>
             </motion.h1>
             <motion.p variants={fadeUp} className="font-display text-xl text-muted-foreground mt-2 sm:text-2xl italic">
               Online Research Project Tracking System
             </motion.p>
+
             <motion.p
               variants={fadeUp}
               className="mt-8 max-w-xl mx-auto text-base leading-relaxed text-muted-foreground"
@@ -163,8 +165,9 @@ export default function LandingPage() {
               ORPTS is built using Design Science Research methodology, providing a robust platform for managing the entire thesis supervision lifecycle. From project registration to AI-powered defense preparation, every feature is designed for academic excellence.
             </p>
             <Button variant="hero" size="lg" className="mt-8" onClick={() => navigate("/login")}>
-              Learn More
+              Learn about our research supervision methodology
             </Button>
+
           </div>
           <div className="rounded-lg overflow-hidden border border-gold">
             <img src={heroBg} alt="Academic workspace" className="w-full h-72 object-cover" />
