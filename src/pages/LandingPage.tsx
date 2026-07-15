@@ -165,8 +165,9 @@ export default function LandingPage() {
               ORPTS is built using Design Science Research methodology, providing a robust platform for managing the entire thesis supervision lifecycle. From project registration to AI-powered defense preparation, every feature is designed for academic excellence.
             </p>
             <Button variant="hero" size="lg" className="mt-8" onClick={() => navigate("/login")}>
-              Learn More
+              Learn about our research supervision methodology
             </Button>
+
           </div>
           <div className="rounded-lg overflow-hidden border border-gold">
             <img src={heroBg} alt="Academic workspace" className="w-full h-72 object-cover" />
