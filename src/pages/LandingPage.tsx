@@ -98,10 +98,12 @@ export default function LandingPage() {
               className="font-display text-5xl font-bold leading-tight tracking-tight text-foreground sm:text-6xl md:text-7xl"
             >
               <span className="text-gradient-gold">ORPTS</span>
+              <span className="sr-only"> — Online Research Project Tracking System</span>
             </motion.h1>
             <motion.p variants={fadeUp} className="font-display text-xl text-muted-foreground mt-2 sm:text-2xl italic">
               Online Research Project Tracking System
             </motion.p>
+
             <motion.p
               variants={fadeUp}
               className="mt-8 max-w-xl mx-auto text-base leading-relaxed text-muted-foreground"
