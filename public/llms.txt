@@ -1,0 +1,14 @@
+# ORPTS — Online Research Project Tracking System
+
+> AI-powered academic supervision platform that streamlines thesis
+> supervision with intelligent document analysis, automated defense
+> preparation, and AI-assisted feedback between students and supervisors.
+
+ORPTS supports three roles — students, supervisors, and coordinators —
+across the full research lifecycle: project registration, topic approval,
+document versioning, threaded feedback, scheduling, and defense simulation.
+
+## Pages
+
+- [Home](/): Overview of the platform, features, and modules.
+- [Sign in](/login): Student, supervisor, and admin sign-in.
