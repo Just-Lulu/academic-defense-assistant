@@ -80,7 +80,15 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="relative min-h-screen flex items-center overflow-hidden">
         <div className="absolute inset-0">
-          <img src={heroBg} alt="" className="h-full w-full object-cover" />
+          <img
+            src={heroBg}
+            alt=""
+            width={1920}
+            height={1080}
+            fetchPriority="high"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
           <div className="absolute inset-0 bg-hero-overlay" />
         </div>
         <div className="container relative z-10 py-32 pt-40">
