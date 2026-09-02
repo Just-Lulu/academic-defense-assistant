@@ -1,52 +1,33 @@
-# Plan
+# Rewrite the Northeastern personal statement truthfully
 
-## 1. Login details for Aisha Bello & "Talia"
+## Goal
+Keep the essay's reflective tone, structure, and length, but replace the paragraph describing features ORPTS does not have with an accurate account of what the platform actually does.
 
-Findings from the database:
-- **Aisha Bello** exists → email `student.demo@orpts.test`, role: student.
-- **Talia** → no account found (no profile or email matches "talia").
+## What is inaccurate
+The second paragraph claims Defense Buddy (ORPTS) was built to:
+1. Generate UML diagrams from a student's project description
+2. Draft full methodology chapters
+3. Assemble results into submission-ready Word documents
 
-Passwords are hashed and cannot be read back. Two options for each account:
+None of these exist in the codebase. The real AI features are:
+- **AI Assistant (RAG chatbot)** — a streaming assistant grounded in the user's live projects, documents, and milestones, answering supervision and methodology questions
+- **Auto-Defense Simulator** — analyzes a student's uploaded chapter/document and generates realistic defense questions with evaluated practice answers
+- **Document Insights** — AI-generated summary and review guidance on uploaded chapter drafts
 
-- Reset Aisha Bello's password to a known value (e.g. `Stud3nt!Aisha2026`) via the existing `admin-manage-users` edge function (add a `reset_password` action) or directly via the Supabase admin API in a one-off call.
-- For Talia: either confirm the intended email, or create a new student account `student.talia@orpts.app` with a known password.
+The real engineering depth is in the platform itself: role-based access (student / supervisor / admin) with row-level security, versioned document uploads with threaded supervisor feedback, real-time messaging, meeting scheduling, and a hardened auth/role system — all built on React, Vite, Tailwind, and a managed Postgres backend with edge functions.
 
-**Clarify before I run anything:** confirm Talia's full name + intended email (or let me create `Talia Okafor` / `student.talia@orpts.app`).
+## Rewrite approach
+- Keep every paragraph before and after the false one essentially intact (personal history, GPA, Northeastern motivation, goals) — only fix factual details where needed (e.g., "Defense Buddy" naming stays).
+- Replace the UML / methodology-chapter / Word-document claims with an equivalent three-part learning narrative drawn from the real features:
+  1. The **RAG assistant** — taught prompt grounding, context injection, and why retrieval quality decides whether AI help is useful or dangerous
+  2. The **defense simulator** — pushed into natural language generation limits: getting a model to ask probing, academically rigorous questions and evaluate answers fairly
+  3. The **platform engineering** — auth, row-level security, versioning, real-time data: the unglamorous but essential engineering that turns a good idea into software a department could actually run
+- Preserve the exact reflective cadence ("Each of those pieces taught me something different...") so the statement still reads as one voice.
+- Light copyedit pass on the remaining known artifacts (missing em-dashes/commas lost in extraction) — no content changes.
 
-## 2. Supervisor name not showing on the Projects page
+## Deliverable
+A new downloadable Word document `Northeastern_Toluwanimi_revised.docx` (same two-page personal statement format) plus the revised text shown in chat for review before download.
 
-Root cause: `ProjectsPage.fetchSupervisors()` queries `public.user_roles` to find supervisor IDs. The RLS on `user_roles` only allows users to view **their own** roles (or admins to view all). For a student, that query returns 0 rows, so `supervisors` is empty and `getSupervisorName(supervisor_id)` returns `null`. The UI then shows neither the supervisor's name nor the "Assign Supervisor" button (because `supervisor_id` is set).
-
-Fix (frontend only — `src/pages/ProjectsPage.tsx`):
-- Resolve the supervisor name directly from `public.profiles` using each project's `supervisor_id` (profiles are readable by all authenticated users via existing RLS). No schema or policy change needed.
-- Still load the supervisor list for the assignment dropdown, but make it tolerant when empty (e.g. only show "Assign Supervisor" to the student/admin and fall back to "no supervisors available" if the list is empty for non-admins).
-
-## 3. How a supervisor marks a document as reviewed
-
-Already implemented on the Supervisor page (`/app/supervisor`):
-1. Open the assigned project → scroll to the **Documents** section.
-2. Each document version has review-status controls that call `setDocReviewStatus(doc, status)` and write to `documents.review_status` (`reviewed` / `needs_revision` / `not_reviewed`), plus `reviewed_by` and `reviewed_at`.
-3. The student sees the resulting badge ("Reviewed", "Needs revision", etc.) on their Documents page.
-
-No code change required — I'll just surface this in the reply. If the buttons are not visible to you, that means your account is currently signed in as a student; sign in with a supervisor account assigned to that project.
-
-## 4. Reject-project error: `projects_status_check`
-
-Root cause: the CHECK constraint on `public.projects.status` only allows  
-`draft | in_progress | under_review | completed | archived`.  
-`rejectTopic()` in `SupervisorPage.tsx` tries to set status `'rejected'`, which violates the constraint. `pendingTopics` also references a `'pending_approval'` status that isn't allowed either.
-
-Fix (one migration):
-- Drop and recreate `projects_status_check` to also allow `'rejected'` and `'pending_approval'`.
-- Leave existing rows untouched (all current values remain valid).
-
-## Technical summary
-
-- DB migration: `ALTER TABLE public.projects DROP CONSTRAINT projects_status_check; ALTER TABLE public.projects ADD CONSTRAINT projects_status_check CHECK (status IN ('draft','pending_approval','in_progress','under_review','completed','rejected','archived'));`
-- `src/pages/ProjectsPage.tsx`: fetch supervisor profile by `supervisor_id` directly from `profiles`; keep `user_roles` query only as a best-effort source for the assignment dropdown.
-- Password reset / account creation: run via the existing `admin-manage-users` edge function (extend with `reset_password` action) — pending your confirmation on Talia.
-- No changes needed to document-review code; just an explanation.
-
-## Open question
-
-Who is "Talia"? Please confirm her full name and the email I should use (or approve creating `Talia Okafor` at `student.talia@orpts.app`).
+## Technical notes
+- Generate the .docx with the docx skill (docx-js, US Letter, 1" margins, serif body font to match a statement of purpose).
+- No changes to app code.
